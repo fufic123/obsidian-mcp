@@ -10,3 +10,5 @@ dist/
 build/
 config.toml
 .docs/
+.claude/
+*.md
