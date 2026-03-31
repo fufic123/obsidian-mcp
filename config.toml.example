@@ -1,0 +1,22 @@
+# obsidian-mcp configuration
+# Copy to ~/.config/obsidian-mcp/config.toml and edit vault paths.
+#
+# Each namespace has a name, an optional `match` prefix for $PWD resolution,
+# and a `vault` path. First matching namespace wins; `default` is the fallback.
+
+[namespaces.personal]
+match = "/Users/username/Documents/personal"
+vault = "/Users/username/Documents/personal/obsidian"
+
+# [namespaces.work]
+# match = "/Users/username/work"
+# vault = "~/vaults/work"
+
+[namespaces.default]
+vault = "/Users/username/Documents/personal/obsidian"
+
+[memory]
+max_index_lines = 200        # MEMORY.md line limit
+max_index_bytes = 25600      # MEMORY.md byte limit (25KB)
+frontmatter_scan_lines = 30  # lines to read for frontmatter parsing
+max_search_results = 20      # max results from get_relevant_context
