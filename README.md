@@ -95,7 +95,9 @@ Add more namespaces as needed — see [Configuration](#configuration) for the fu
 
 ### 2. Connect to your MCP client
 
-**Claude Code** (`~/.claude/settings.json`):
+All MCP clients use the same server config — the only difference is where the config file lives.
+
+Create a `.mcp.json` file with this content:
 
 ```json
 {
@@ -110,38 +112,24 @@ Add more namespaces as needed — see [Configuration](#configuration) for the fu
   }
 }
 ```
-
-**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "obsidian": {
-      "command": "uvx",
-      "args": ["obsidian-mcp"],
-      "env": {
-        "OBSIDIAN_MCP_CONFIG": "/Users/username/.config/obsidian-mcp/config.toml"
-      }
-    }
-  }
-}
-```
-
-**Cursor** (Settings → MCP Servers → Add):
-
-```json
-{
-  "command": "uvx",
-  "args": ["obsidian-mcp"],
-  "env": {
-    "OBSIDIAN_MCP_CONFIG": "/Users/username/.config/obsidian-mcp/config.toml"
-  }
-}
-```
-
-**Windsurf** — same format via MCP settings.
 
 > `OBSIDIAN_MCP_CONFIG` is optional if your config lives at `~/.config/obsidian-mcp/config.toml`.
+
+**Where to place `.mcp.json`:**
+
+| Client | Path | Scope |
+|--------|------|-------|
+| **Claude Code** (global) | `~/.mcp.json` | All projects |
+| **Claude Code** (project) | `.mcp.json` in project root | Single project |
+| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | All conversations |
+| **Cursor** | Settings → MCP Servers → Add (paste the server object) | Workspace or global |
+| **Windsurf** | MCP settings (same format) | Workspace or global |
+
+**Claude Code notes:**
+- `.mcp.json` in a project directory applies only when Claude Code is launched from that directory
+- `~/.mcp.json` applies globally to all projects — put it here if you want memory everywhere
+- After adding/changing `.mcp.json`, restart Claude Code — MCP servers are loaded at startup
+- On first launch Claude Code will ask to approve the new server — confirm it
 
 ## Configuration
 
