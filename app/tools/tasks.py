@@ -16,10 +16,9 @@ class TaskTools(BaseTools):
         tasks: TaskService,
         mcp: FastMCP,
         performance_service: IPerformanceService | None = None,
-        agent_name: str = "obsidian-mcp",
-        model: str = "unknown",
+        session_id: str | None = None,
     ) -> None:
-        super().__init__(performance_service, agent_name, model)
+        super().__init__(performance_service, session_id)
         self._tasks = tasks
         mcp.tool()(self._wrap(self.get_task))
         mcp.tool()(self._wrap(self.create_task))

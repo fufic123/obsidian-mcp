@@ -45,3 +45,8 @@ class IPerformanceService(ABC):
     def get_dashboard(self) -> str:
         """Return a full performance dashboard grouped by agent."""
         ...
+
+    @abstractmethod
+    def end_all_active_sessions(self) -> None:
+        """Mark all active sessions as completed. Called automatically on process exit."""
+        ...

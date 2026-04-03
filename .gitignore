@@ -12,3 +12,5 @@ config.toml
 .docs/
 .claude/
 *.md
+!prompt.example.md
+!CLAUDE.md

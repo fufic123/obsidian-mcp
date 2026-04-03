@@ -151,6 +151,22 @@ class PerformanceService(IPerformanceService):
 
         return "\n".join(lines)
 
+    def end_all_active_sessions(self) -> None:
+        """Mark all active sessions completed. Registered as atexit handler."""
+        for f in self._vault.list_files(self._vault.performance_path / "sessions"):
+            try:
+                content = self._vault.read(f)
+                session = AgentSession.from_content(content)
+                if session and session.status == "active":
+                    session.ended_at = datetime.now(UTC)
+                    session.status = "completed"
+                    updated = self.__replace_frontmatter(
+                        content, render_frontmatter(session.frontmatter())
+                    )
+                    self._vault.write(f, updated)
+            except Exception:
+                continue
+
     def __find_session_file(self, session_id: str) -> Path | None:
         sessions_path = self._vault.performance_path / "sessions"
         for f in self._vault.list_files(sessions_path):

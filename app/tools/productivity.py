@@ -17,10 +17,9 @@ class ProductivityTools(BaseTools):
         vault: IVaultService,
         mcp: FastMCP,
         performance_service: IPerformanceService | None = None,
-        agent_name: str = "obsidian-mcp",
-        model: str = "unknown",
+        session_id: str | None = None,
     ) -> None:
-        super().__init__(performance_service, agent_name, model)
+        super().__init__(performance_service, session_id)
         self._productivity = productivity
         self._vault = vault
         mcp.tool()(self._wrap(self.get_status))

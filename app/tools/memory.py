@@ -16,10 +16,9 @@ class MemoryTools(BaseTools):
         memory: IMemoryService,
         mcp: FastMCP,
         performance_service: IPerformanceService | None = None,
-        agent_name: str = "obsidian-mcp",
-        model: str = "unknown",
+        session_id: str | None = None,
     ) -> None:
-        super().__init__(performance_service, agent_name, model)
+        super().__init__(performance_service, session_id)
         self._memory = memory
         mcp.tool()(self._wrap(self.get_core_context))
         mcp.tool()(self._wrap(self.get_relevant_context))

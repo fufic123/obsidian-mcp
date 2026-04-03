@@ -1,5 +1,6 @@
 """Entry point — DI wiring and FastMCP initialization."""
 
+import atexit
 import os
 import tomllib
 from pathlib import Path
@@ -58,9 +59,14 @@ def create_app() -> FastMCP:
 
     mcp = FastMCP("obsidian-mcp", instructions="Obsidian vault memory server")
 
-    MemoryTools(memory, mcp, performance_service=performance)
-    TaskTools(tasks, mcp, performance_service=performance)
-    ProductivityTools(productivity, vault, mcp, performance_service=performance)
+    server_session_id = performance.start_session("obsidian-mcp", "unknown")
+    atexit.register(performance.end_all_active_sessions)
+
+    MemoryTools(memory, mcp, performance_service=performance, session_id=server_session_id)
+    TaskTools(tasks, mcp, performance_service=performance, session_id=server_session_id)
+    ProductivityTools(
+        productivity, vault, mcp, performance_service=performance, session_id=server_session_id
+    )
     PerformanceTools(performance, mcp)
 
     return mcp
