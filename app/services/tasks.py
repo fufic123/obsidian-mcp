@@ -1,12 +1,10 @@
 """Task service — manages Obsidian Tasks format tasks."""
 
 from datetime import date
-from typing import get_args
-
 from app.domain.interfaces.vault import IVaultService
 from app.domain.models.notes import Priority, TaskNote
 
-_VALID_PRIORITIES = set(get_args(Priority))
+_VALID_PRIORITY_VALUES = {p.value for p in Priority}
 
 
 class TaskService:
@@ -65,8 +63,8 @@ class TaskService:
                     title = stripped[5:].strip()
                 elif stripped.startswith("priority:"):
                     val = stripped[9:].strip()
-                    if val in _VALID_PRIORITIES:
-                        priority = val  # type: ignore[assignment]
+                    if val in _VALID_PRIORITY_VALUES:
+                        priority = Priority(val)
                 elif stripped.startswith("project:"):
                     val = stripped[8:].strip()
                     project = val if val else None

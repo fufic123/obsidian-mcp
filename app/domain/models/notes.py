@@ -2,18 +2,22 @@
 
 from abc import ABC, abstractmethod
 from datetime import date
+from enum import Enum
 from re import sub
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
-Priority = Literal["high", "medium", "low"]
+class Priority(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
 
 _PRIORITY_EMOJI: dict[Priority, str] = {
-    "high": "⏫",
-    "medium": "🔼",
-    "low": "🔽",
+    Priority.HIGH: "⏫",
+    Priority.MEDIUM: "🔼",
+    Priority.LOW: "🔽",
 }
 
 

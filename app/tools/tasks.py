@@ -1,14 +1,17 @@
 """MCP tool wrappers for task operations."""
 
 from datetime import date
-from typing import Literal
 
 from fastmcp import FastMCP
 
 from app.domain.models.notes import Priority
 from app.services.tasks import TaskService
 
-_PRIORITY_ORDER: dict[Priority, int] = {"high": 0, "medium": 1, "low": 2}
+_PRIORITY_ORDER: dict[Priority, int] = {
+    Priority.HIGH: 0,
+    Priority.MEDIUM: 1,
+    Priority.LOW: 2,
+}
 
 
 def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
@@ -17,7 +20,7 @@ def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
     @mcp.tool()
     def create_task(
         title: str,
-        priority: Literal["high", "medium", "low"],
+        priority: Priority,
         due: str | None = None,
         project: str | None = None,
     ) -> str:
@@ -40,5 +43,5 @@ def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
         for t in task_list:
             due_str = f" (due: {t.due.isoformat()})" if t.due else ""
             proj_str = f" [{t.project}]" if t.project else ""
-            lines.append(f"- [ ] [{t.priority}] {t.title}{due_str}{proj_str}")
+            lines.append(f"- [ ] [{t.priority.value}] {t.title}{due_str}{proj_str}")
         return "\n".join(lines)
