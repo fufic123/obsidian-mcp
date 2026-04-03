@@ -66,11 +66,19 @@ class TaskService:
     def rebuild_index(self) -> str:
         """Regenerate tasks/TASKS.md. Source of truth = individual .md files."""
         by_project: dict[str, list[TaskNote]] = {}
-        for f in self._open_task_files():
+        done_by_project: dict[str, list[TaskNote]] = {}
+
+        for f in self._vault.list_files(self._vault.tasks_path, recursive=True):
+            if f.name == "TASKS.md":
+                continue
             try:
                 task = self._parse_task(self._vault.read(f), source_path=f)
-                if task and not task.done:
-                    key = task.project or "inbox"
+                if not task:
+                    continue
+                key = task.project or "inbox"
+                if "archive" in f.parts or task.done:
+                    done_by_project.setdefault(key, []).append(task)
+                else:
                     by_project.setdefault(key, []).append(task)
             except Exception:
                 continue
@@ -95,6 +103,19 @@ class TaskService:
                 due_str = f" (due:{t.due.isoformat()})" if t.due else ""
                 lines.append(f"- [{t.title}]({rel}) — {desc}{due_str}")
             lines.append("")
+
+        if done_by_project:
+            lines.append("## Done\n")
+            for project in sorted(done_by_project):
+                lines.append(f"### Project: {project}\n")
+                for t in done_by_project[project]:
+                    rel = (
+                        t.source_path.relative_to(self._vault.tasks_path)
+                        if t.source_path
+                        else Path(t.slug + ".md")
+                    )
+                    lines.append(f"- [{t.title}]({rel}) — {t.description or t.title}")
+                lines.append("")
 
         content = "\n".join(lines)
         self._vault.write(self._vault.tasks_path / "TASKS.md", content)
