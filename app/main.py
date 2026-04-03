@@ -61,10 +61,9 @@ def create_app() -> FastMCP:
     # Create MCP server
     mcp = FastMCP("obsidian-mcp", instructions="Obsidian vault memory server")
 
-    # Register all tools
-    MemoryTools(memory).register(mcp)
-    TaskTools(tasks).register(mcp)
-    ProductivityTools(productivity, vault).register(mcp)
+    MemoryTools(memory, mcp)
+    TaskTools(tasks, mcp)
+    ProductivityTools(productivity, vault, mcp)
 
     return mcp
 

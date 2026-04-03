@@ -3,7 +3,7 @@
 from datetime import date
 
 from app.domain.interfaces.vault import IVaultService
-from app.domain.models.notes import DailyNote
+from app.domain.models.daily_note import DailyNote
 
 
 class ProductivityService:

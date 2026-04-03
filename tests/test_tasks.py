@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from app.domain.models.notes import Priority
+from app.domain.models.priority import Priority
 from app.services.tasks import TaskService
 
 

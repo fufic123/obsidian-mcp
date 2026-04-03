@@ -1,7 +1,9 @@
 """Tests for MemoryService."""
 
 from app.adapters.vault import FileVaultService
-from app.domain.models.notes import ConversationSummary, CoreNote, HighlightNote
+from app.domain.models.conversation_note import ConversationSummary
+from app.domain.models.core_note import CoreNote
+from app.domain.models.highlight_note import HighlightNote
 from app.services.memory import MemoryService
 
 

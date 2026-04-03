@@ -25,8 +25,6 @@ class TaskService:
     def __init__(self, vault: IVaultService) -> None:
         self._vault = vault
 
-    # ── public API ────────────────────────────────────────────────────────────
-
     def get_task(self, title: str) -> TaskNote:
         """Return a parsed TaskNote by title (active or done)."""
         path = self._resolve_path(title, anywhere=True)
@@ -157,8 +155,6 @@ class TaskService:
         self._vault.write(self._vault.tasks_path / "TASKS.md", content)
         return content
 
-    # ── index lookup ──────────────────────────────────────────────────────────
-
     def _index_links(self) -> dict[str, Path]:
         """Parse TASKS.md and return {title_slug: absolute_path} for all tasks."""
         index_path = self._vault.tasks_path / "TASKS.md"
@@ -188,8 +184,6 @@ class TaskService:
 
         raise VaultReadError(f"Task not found: {title!r}")
 
-    # ── file helpers ──────────────────────────────────────────────────────────
-
     def _open_task_files(self) -> list[Path]:
         """Task files excluding TASKS.md and archive/ subfolders."""
         return [
@@ -203,8 +197,6 @@ class TaskService:
         slug = _slugify(title)
         subfolder = project if project is not None else current.parent.name
         return self._vault.tasks_path / subfolder / f"{slug}.md"
-
-    # ── rendering ─────────────────────────────────────────────────────────────
 
     def _render_active_section(self, by_project: dict[str, list[TaskNote]]) -> list[str]:
         lines: list[str] = []
@@ -240,8 +232,6 @@ class TaskService:
         due_str = f" (due:{task.due.isoformat()})" if task.due else ""
         return f"- [{task.title}]({rel}) — {desc}{due_str}"
 
-    # ── parsing ───────────────────────────────────────────────────────────────
-
     def _parse_task(self, content: str, source_path: Path | None = None) -> TaskNote | None:
         """Parse a task note from markdown content."""
         fields = _extract_frontmatter(content)
@@ -265,9 +255,6 @@ class TaskService:
             created=date.fromisoformat(c) if (c := fields.get("created")) else date.today(),
             source_path=source_path,
         )
-
-
-# ── module-level helpers ───────────────────────────────────────────────────────
 
 
 def _extract_frontmatter(content: str) -> dict[str, str]:

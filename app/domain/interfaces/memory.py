@@ -2,11 +2,9 @@
 
 from abc import ABC, abstractmethod
 
-from app.domain.models.notes import (
-    ConversationSummary,
-    CoreNote,
-    HighlightNote,
-)
+from app.domain.models.conversation_note import ConversationSummary
+from app.domain.models.core_note import CoreNote
+from app.domain.models.highlight_note import HighlightNote
 from app.domain.models.search import SearchResult
 
 
