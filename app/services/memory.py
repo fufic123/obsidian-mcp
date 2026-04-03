@@ -4,7 +4,9 @@ from app.adapters.index import IndexService
 from app.domain.interfaces.memory import IMemoryService
 from app.domain.interfaces.search import ISearchService
 from app.domain.interfaces.vault import IVaultService
-from app.domain.models.notes import ConversationSummary, CoreNote, HighlightNote
+from app.domain.models.conversation_note import ConversationSummary
+from app.domain.models.core_note import CoreNote
+from app.domain.models.highlight_note import HighlightNote
 from app.domain.models.search import SearchQuery, SearchResult
 
 

@@ -6,7 +6,10 @@ from pathlib import Path
 
 from app.domain.exceptions.vault import VaultReadError
 from app.domain.interfaces.vault import IVaultService
-from app.domain.models.notes import Priority, TaskNote, TaskStatus, _slugify
+from app.domain.models.base import slugify as _slugify
+from app.domain.models.priority import Priority
+from app.domain.models.task_note import TaskNote
+from app.domain.models.task_status import TaskStatus
 
 _VALID_PRIORITY_VALUES = {p.value for p in Priority}
 _VALID_STATUS_VALUES = {s.value for s in TaskStatus}

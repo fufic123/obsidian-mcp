@@ -13,9 +13,9 @@ from app.domain.models.config import AppConfig, MemoryConfig, NamespaceConfig
 from app.services.memory import MemoryService
 from app.services.productivity import ProductivityService
 from app.services.tasks import TaskService
-from app.tools.memory import register_memory_tools
-from app.tools.productivity import register_productivity_tools
-from app.tools.tasks import register_task_tools
+from app.tools.memory import MemoryTools
+from app.tools.productivity import ProductivityTools
+from app.tools.tasks import TaskTools
 
 
 def _load_config() -> AppConfig:
@@ -62,9 +62,9 @@ def create_app() -> FastMCP:
     mcp = FastMCP("obsidian-mcp", instructions="Obsidian vault memory server")
 
     # Register all tools
-    register_memory_tools(mcp, memory)
-    register_task_tools(mcp, tasks)
-    register_productivity_tools(mcp, productivity, vault)
+    MemoryTools(memory).register(mcp)
+    TaskTools(tasks).register(mcp)
+    ProductivityTools(productivity, vault).register(mcp)
 
     return mcp
 
