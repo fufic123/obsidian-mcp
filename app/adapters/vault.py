@@ -74,6 +74,16 @@ class FileVaultService(IVaultService):
         except OSError as e:
             raise VaultWriteError(f"Cannot move {src} → {dst}") from e
 
+    def delete(self, path: Path) -> None:
+        """Delete a file from the vault."""
+        validated = self._validate_path(path)
+        try:
+            validated.unlink()
+        except FileNotFoundError as e:
+            raise VaultReadError(f"File not found: {path}") from e
+        except OSError as e:
+            raise VaultWriteError(f"Cannot delete: {path}") from e
+
     def exists(self, path: Path) -> bool:
         """Check if a path exists in the vault."""
         try:

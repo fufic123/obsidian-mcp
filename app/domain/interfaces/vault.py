@@ -77,6 +77,11 @@ class IVaultService(ABC):
         ...
 
     @abstractmethod
+    def delete(self, path: Path) -> None:
+        """Delete a file from the vault."""
+        ...
+
+    @abstractmethod
     def search_content(self, query: str) -> list[tuple[Path, str]]:
         """Full-text search across all vault markdown files."""
         ...

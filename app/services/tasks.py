@@ -1,5 +1,6 @@
 """Task service — manages Obsidian Tasks format tasks."""
 
+import re
 from datetime import date
 from pathlib import Path
 
@@ -11,12 +12,25 @@ _VALID_PRIORITY_VALUES = {p.value for p in Priority}
 _VALID_STATUS_VALUES = {s.value for s in TaskStatus}
 _PRIORITY_ORDER = {Priority.HIGH: 0, Priority.MEDIUM: 1, Priority.LOW: 2}
 
+# Matches markdown links: [title](path)
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
 
 class TaskService:
     """Manages tasks in Obsidian Tasks format."""
 
     def __init__(self, vault: IVaultService) -> None:
         self._vault = vault
+
+    # ── public API ────────────────────────────────────────────────────────────
+
+    def get_task(self, title: str) -> TaskNote:
+        """Return a parsed TaskNote by title (active or done)."""
+        path = self._resolve_path(title, anywhere=True)
+        task = self._parse_task(self._vault.read(path), source_path=path)
+        if task is None:
+            raise VaultReadError(f"Could not parse task: {title!r}")
+        return task
 
     def create_task(
         self,
@@ -30,29 +44,75 @@ class TaskService:
         note = TaskNote(
             title=title, description=description, priority=priority, due=due, project=project
         )
-        subfolder = project if project else "inbox"
+        subfolder = project or "inbox"
         path = self._vault.tasks_path / subfolder / f"{note.slug}.md"
         self._vault.write(path, note.to_markdown())
         self.rebuild_index()
         return str(path)
 
     def complete_task(self, title: str) -> str:
-        """Mark a task done and move to tasks/{project}/archive/. Rebuilds index."""
-        slug = _slugify(title)
-        path = self._find_task_file(slug)
-        if path is None:
-            raise VaultReadError(f"Task not found: {title!r}")
-
-        content = self._vault.read(path)
-        updated = content.replace("status: active", "status: done", 1)
-        self._vault.write(path, updated)
+        """Set status: done and move to archive/. Rebuilds index."""
+        path = self._resolve_path(title)
+        content = _patch_frontmatter(self._vault.read(path), "status", TaskStatus.DONE)
+        self._vault.write(path, content)
         archive_path = path.parent / "archive" / path.name
         self._vault.move(path, archive_path)
         self.rebuild_index()
         return str(archive_path)
 
+    def reopen_task(self, title: str) -> str:
+        """Set status: active and move back from archive/. Rebuilds index."""
+        path = self._resolve_path(title, anywhere=True)
+        content = _patch_frontmatter(self._vault.read(path), "status", TaskStatus.ACTIVE)
+        self._vault.write(path, content)
+        # Move out of archive/ back to project folder
+        if "archive" in path.parts:
+            active_path = path.parent.parent / path.name
+            self._vault.move(path, active_path)
+        self.rebuild_index()
+        return str(path)
+
+    def update_task(
+        self,
+        title: str,
+        new_title: str | None = None,
+        description: str | None = None,
+        priority: Priority | None = None,
+        due: date | None = None,
+        project: str | None = None,
+    ) -> str:
+        """Patch any frontmatter fields. Renames/moves file if title or project changes."""
+        path = self._resolve_path(title)
+        content = self._vault.read(path)
+
+        if description is not None:
+            content = _patch_frontmatter(content, "description", description)
+        if priority is not None:
+            content = _patch_frontmatter(content, "priority", priority)
+        if due is not None:
+            content = _patch_frontmatter(content, "due", due.isoformat())
+        if new_title is not None:
+            content = _patch_frontmatter(content, "name", new_title)
+
+        self._vault.write(path, content)
+
+        # Move file if title or project changed
+        new_path = self._relocated_path(path, new_title or title, project)
+        if new_path != path:
+            self._vault.move(path, new_path)
+
+        self.rebuild_index()
+        return str(new_path)
+
+    def delete_task(self, title: str) -> str:
+        """Delete a task file (active or done). Rebuilds index."""
+        path = self._resolve_path(title, anywhere=True)
+        self._vault.delete(path)
+        self.rebuild_index()
+        return str(path)
+
     def list_tasks(self, project: str | None = None) -> list[TaskNote]:
-        """List open tasks. Always rebuilds index from source files first."""
+        """List open tasks sorted by priority. Rebuilds index first."""
         self.rebuild_index()
         tasks: list[TaskNote] = []
         for f in self._open_task_files():
@@ -87,6 +147,64 @@ class TaskService:
             tasks.sort(key=lambda t: _PRIORITY_ORDER[t.priority])
 
         lines = ["# Tasks\n"]
+        lines += self._render_active_section(by_project)
+        lines += self._render_done_section(done_by_project)
+
+        content = "\n".join(lines)
+        self._vault.write(self._vault.tasks_path / "TASKS.md", content)
+        return content
+
+    # ── index lookup ──────────────────────────────────────────────────────────
+
+    def _index_links(self) -> dict[str, Path]:
+        """Parse TASKS.md and return {title_slug: absolute_path} for all tasks."""
+        index_path = self._vault.tasks_path / "TASKS.md"
+        if not self._vault.exists(index_path):
+            return {}
+        links: dict[str, Path] = {}
+        for line in self._vault.read(index_path).splitlines():
+            m = _LINK_RE.search(line)
+            if m:
+                slug = _slugify(m.group(1))
+                links[slug] = self._vault.tasks_path / m.group(2)
+        return links
+
+    def _resolve_path(self, title: str, anywhere: bool = False) -> Path:
+        """Resolve a task file path from title via TASKS.md index.
+
+        anywhere=True also searches Done section (archive/).
+        Raises VaultReadError if not found.
+        """
+        slug = _slugify(title)
+        links = self._index_links()
+
+        path = links.get(slug)
+        if path and self._vault.exists(path):
+            if anywhere or "archive" not in path.parts:
+                return path
+
+        raise VaultReadError(f"Task not found: {title!r}")
+
+    # ── file helpers ──────────────────────────────────────────────────────────
+
+    def _open_task_files(self) -> list[Path]:
+        """Task files excluding TASKS.md and archive/ subfolders."""
+        return [
+            f
+            for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
+            if f.name != "TASKS.md" and "archive" not in f.parts
+        ]
+
+    def _relocated_path(self, current: Path, title: str, project: str | None) -> Path:
+        """Return the expected path for a task after title/project change."""
+        slug = _slugify(title)
+        subfolder = project if project is not None else current.parent.name
+        return self._vault.tasks_path / subfolder / f"{slug}.md"
+
+    # ── rendering ─────────────────────────────────────────────────────────────
+
+    def _render_active_section(self, by_project: dict[str, list[TaskNote]]) -> list[str]:
+        lines: list[str] = []
         for project in sorted(by_project):
             lines.append(f"## Project: {project}\n")
             current_priority: Priority | None = None
@@ -94,113 +212,84 @@ class TaskService:
                 if t.priority != current_priority:
                     current_priority = t.priority
                     lines.append(f"### Priority: {t.priority}\n")
-                rel = (
-                    t.source_path.relative_to(self._vault.tasks_path)
-                    if t.source_path
-                    else Path(t.slug + ".md")
-                )
-                desc = t.description or t.title
-                due_str = f" (due:{t.due.isoformat()})" if t.due else ""
-                lines.append(f"- [{t.title}]({rel}) — {desc}{due_str}")
+                lines.append(self._render_link(t))
             lines.append("")
+        return lines
 
-        if done_by_project:
-            lines.append("## Done\n")
-            for project in sorted(done_by_project):
-                lines.append(f"### Project: {project}\n")
-                for t in done_by_project[project]:
-                    rel = (
-                        t.source_path.relative_to(self._vault.tasks_path)
-                        if t.source_path
-                        else Path(t.slug + ".md")
-                    )
-                    lines.append(f"- [{t.title}]({rel}) — {t.description or t.title}")
-                lines.append("")
+    def _render_done_section(self, done_by_project: dict[str, list[TaskNote]]) -> list[str]:
+        if not done_by_project:
+            return []
+        lines: list[str] = ["## Done\n"]
+        for project in sorted(done_by_project):
+            lines.append(f"### Project: {project}\n")
+            for t in done_by_project[project]:
+                lines.append(self._render_link(t))
+            lines.append("")
+        return lines
 
-        content = "\n".join(lines)
-        self._vault.write(self._vault.tasks_path / "TASKS.md", content)
-        return content
+    def _render_link(self, task: TaskNote) -> str:
+        rel = (
+            task.source_path.relative_to(self._vault.tasks_path)
+            if task.source_path
+            else Path(task.slug + ".md")
+        )
+        desc = task.description or task.title
+        due_str = f" (due:{task.due.isoformat()})" if task.due else ""
+        return f"- [{task.title}]({rel}) — {desc}{due_str}"
 
-    def _open_task_files(self) -> list[Path]:
-        """All task files excluding TASKS.md index and archive subfolders."""
-        return [
-            f
-            for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
-            if f.name != "TASKS.md" and "archive" not in f.parts
-        ]
-
-    def _find_task_file(self, slug: str) -> Path | None:
-        """Find task file by slug — matches filename stem or frontmatter name slug."""
-        for f in self._vault.list_files(self._vault.tasks_path, recursive=True):
-            if f.name == "TASKS.md" or "archive" in f.parts:
-                continue
-            if f.stem == slug:
-                return f
-            try:
-                task = self._parse_task(self._vault.read(f))
-                if task and _slugify(task.title) == slug:
-                    return f
-            except Exception:
-                continue
-        return None
+    # ── parsing ───────────────────────────────────────────────────────────────
 
     def _parse_task(self, content: str, source_path: Path | None = None) -> TaskNote | None:
         """Parse a task note from markdown content."""
-        lines = content.splitlines()
-
-        title = ""
-        description = ""
-        project: str | None = None
-        priority: Priority = Priority.MEDIUM
-        status: TaskStatus = TaskStatus.ACTIVE
-        due: date | None = None
-        created = date.today()
-        in_frontmatter = False
-        for line in lines:
-            stripped = line.strip()
-            if stripped == "---":
-                if not in_frontmatter:
-                    in_frontmatter = True
-                    continue
-                else:
-                    break
-            if in_frontmatter:
-                if stripped.startswith("name:"):
-                    title = stripped[5:].strip()
-                elif stripped.startswith("description:"):
-                    description = stripped[12:].strip()
-                elif stripped.startswith("status:"):
-                    val = stripped[7:].strip()
-                    if val in _VALID_STATUS_VALUES:
-                        status = TaskStatus(val)
-                elif stripped.startswith("priority:"):
-                    val = stripped[9:].strip()
-                    if val in _VALID_PRIORITY_VALUES:
-                        priority = Priority(val)
-                elif stripped.startswith("project:"):
-                    val = stripped[8:].strip()
-                    project = val if val else None
-                elif stripped.startswith("created:"):
-                    try:
-                        created = date.fromisoformat(stripped[8:].strip())
-                    except ValueError:
-                        pass
-                elif stripped.startswith("due:"):
-                    try:
-                        due = date.fromisoformat(stripped[4:].strip())
-                    except ValueError:
-                        pass
-
+        fields = _extract_frontmatter(content)
+        title = fields.get("name", "")
         if not title:
             return None
-
+        priority_val = fields.get("priority", "medium")
+        status_val = fields.get("status", "active")
+        due_val = fields.get("due")
         return TaskNote(
             title=title,
-            description=description,
-            priority=priority,
-            status=status,
-            due=due,
-            project=project,
-            created=created,
+            description=fields.get("description", ""),
+            priority=Priority(priority_val)
+            if priority_val in _VALID_PRIORITY_VALUES
+            else Priority.MEDIUM,
+            status=TaskStatus(status_val)
+            if status_val in _VALID_STATUS_VALUES
+            else TaskStatus.ACTIVE,
+            due=date.fromisoformat(due_val) if due_val else None,
+            project=fields.get("project") or None,
+            created=date.fromisoformat(c) if (c := fields.get("created")) else date.today(),
             source_path=source_path,
         )
+
+
+# ── module-level helpers ───────────────────────────────────────────────────────
+
+
+def _extract_frontmatter(content: str) -> dict[str, str]:
+    """Extract key: value pairs from the YAML frontmatter block."""
+    fields: dict[str, str] = {}
+    in_fm = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped == "---":
+            if not in_fm:
+                in_fm = True
+                continue
+            break
+        if in_fm and ":" in stripped:
+            key, _, val = stripped.partition(":")
+            fields[key.strip()] = val.strip()
+    return fields
+
+
+def _patch_frontmatter(content: str, field: str, value: object) -> str:
+    """Replace a single frontmatter field value, preserving everything else."""
+    return re.sub(
+        rf"^({re.escape(field)}:\s*).*$",
+        rf"\g<1>{value}",
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
