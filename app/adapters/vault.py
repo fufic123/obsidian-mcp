@@ -54,12 +54,13 @@ class FileVaultService(IVaultService):
         except OSError as e:
             raise VaultWriteError(f"Cannot write: {path}") from e
 
-    def list_files(self, directory: Path, pattern: str = "*.md") -> list[Path]:
+    def list_files(self, directory: Path, pattern: str = "*.md", recursive: bool = False) -> list[Path]:
         """List files matching pattern in a vault directory."""
         validated = self._validate_path(directory)
         if not validated.is_dir():
             return []
-        return sorted(validated.glob(pattern))
+        glob_fn = validated.rglob if recursive else validated.glob
+        return sorted(glob_fn(pattern))
 
     def exists(self, path: Path) -> bool:
         """Check if a path exists in the vault."""

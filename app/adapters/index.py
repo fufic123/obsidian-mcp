@@ -40,7 +40,12 @@ class IndexService:
 
     def rebuild(self) -> str:
         """Rebuild MEMORY.md from all memory files."""
-        sections: list[str] = ["# Memory Index\n"]
+        sections: list[str] = [
+            "# Memory Index\n",
+            "## Tasks",
+            "- [TASKS.md](../tasks/TASKS.md) — open tasks grouped by project and priority",
+            "",
+        ]
 
         # Core section
         core_entries = self._collect_entries(self._vault.core_path, "Core")
