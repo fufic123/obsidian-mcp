@@ -75,16 +75,19 @@ class TaskService:
         title: str,
         new_title: str | None = None,
         description: str | None = None,
+        implementation: str | None = None,
         priority: Priority | None = None,
         due: date | None = None,
         project: str | None = None,
     ) -> str:
         """Patch any frontmatter fields. Renames/moves file if title or project changes."""
-        path = self.__resolve_path(title)
+        path = self.__resolve_path(title, anywhere=True)
         content = self._vault.read(path)
 
         if description is not None:
             content = self.__patch_frontmatter(content, "description", description)
+        if implementation is not None:
+            content = self.__patch_frontmatter(content, "implementation", implementation)
         if priority is not None:
             content = self.__patch_frontmatter(content, "priority", priority)
         if due is not None:

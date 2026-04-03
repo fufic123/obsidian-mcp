@@ -42,6 +42,8 @@ class TaskTools(BaseTools):
             f"priority: {task.priority}",
             f"description: {task.description}",
         ]
+        if task.implementation:
+            lines.append(f"implementation: {task.implementation}")
         if task.due:
             lines.append(f"due: {task.due.isoformat()}")
         if task.project:
@@ -101,16 +103,21 @@ class TaskTools(BaseTools):
         title: str,
         new_title: str | None = None,
         description: str | None = None,
+        implementation: str | None = None,
         priority: Priority | None = None,
         due: str | None = None,
         project: str | None = None,
     ) -> str:
-        """Update any fields of an active task. Only pass fields you want to change."""
+        """Update any fields of an active or done task. Only pass fields you want to change.
+
+        implementation: AI-written summary of what was done — use this when completing work.
+        """
         due_date = date.fromisoformat(due) if due else None
         path = self._tasks.update_task(
             title=title,
             new_title=new_title,
             description=description,
+            implementation=implementation,
             priority=priority,
             due=due_date,
             project=project,

@@ -21,6 +21,7 @@ class TaskNote(BaseModel, INote):
 
     title: str
     description: str = ""
+    implementation: str = ""  # AI-written notes on what was done
     priority: Priority
     status: TaskStatus = TaskStatus.ACTIVE
     due: date | None = None
@@ -41,6 +42,7 @@ class TaskNote(BaseModel, INote):
         return cls(
             title=title,
             description=fields.get("description", ""),
+            implementation=fields.get("implementation", ""),
             priority=Priority(priority_val)
             if priority_val in _VALID_PRIORITY_VALUES
             else Priority.MEDIUM,
@@ -61,6 +63,7 @@ class TaskNote(BaseModel, INote):
         return {
             "name": self.title,
             "description": self.description or self.title,
+            "implementation": self.implementation or None,
             "type": "task",
             "status": self.status,
             "priority": self.priority,
