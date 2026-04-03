@@ -11,8 +11,6 @@ from app.domain.models.priority import Priority
 from app.domain.models.task_note import TaskNote
 from app.domain.models.task_status import TaskStatus
 
-_VALID_PRIORITY_VALUES = {p.value for p in Priority}
-_VALID_STATUS_VALUES = {s.value for s in TaskStatus}
 _PRIORITY_ORDER = {Priority.HIGH: 0, Priority.MEDIUM: 1, Priority.LOW: 2}
 
 # Matches markdown links: [title](path)
@@ -27,8 +25,8 @@ class TaskService:
 
     def get_task(self, title: str) -> TaskNote:
         """Return a parsed TaskNote by title (active or done)."""
-        path = self._resolve_path(title, anywhere=True)
-        task = self._parse_task(self._vault.read(path), source_path=path)
+        path = self.__resolve_path(title, anywhere=True)
+        task = TaskNote.from_content(self._vault.read(path), source_path=path)
         if task is None:
             raise VaultReadError(f"Could not parse task: {title!r}")
         return task
@@ -53,8 +51,8 @@ class TaskService:
 
     def complete_task(self, title: str) -> str:
         """Set status: done and move to archive/. Rebuilds index."""
-        path = self._resolve_path(title)
-        content = _patch_frontmatter(self._vault.read(path), "status", TaskStatus.DONE)
+        path = self.__resolve_path(title)
+        content = self.__patch_frontmatter(self._vault.read(path), "status", TaskStatus.DONE)
         self._vault.write(path, content)
         archive_path = path.parent / "archive" / path.name
         self._vault.move(path, archive_path)
@@ -63,10 +61,9 @@ class TaskService:
 
     def reopen_task(self, title: str) -> str:
         """Set status: active and move back from archive/. Rebuilds index."""
-        path = self._resolve_path(title, anywhere=True)
-        content = _patch_frontmatter(self._vault.read(path), "status", TaskStatus.ACTIVE)
+        path = self.__resolve_path(title, anywhere=True)
+        content = self.__patch_frontmatter(self._vault.read(path), "status", TaskStatus.ACTIVE)
         self._vault.write(path, content)
-        # Move out of archive/ back to project folder
         if "archive" in path.parts:
             active_path = path.parent.parent / path.name
             self._vault.move(path, active_path)
@@ -83,22 +80,21 @@ class TaskService:
         project: str | None = None,
     ) -> str:
         """Patch any frontmatter fields. Renames/moves file if title or project changes."""
-        path = self._resolve_path(title)
+        path = self.__resolve_path(title)
         content = self._vault.read(path)
 
         if description is not None:
-            content = _patch_frontmatter(content, "description", description)
+            content = self.__patch_frontmatter(content, "description", description)
         if priority is not None:
-            content = _patch_frontmatter(content, "priority", priority)
+            content = self.__patch_frontmatter(content, "priority", priority)
         if due is not None:
-            content = _patch_frontmatter(content, "due", due.isoformat())
+            content = self.__patch_frontmatter(content, "due", due.isoformat())
         if new_title is not None:
-            content = _patch_frontmatter(content, "name", new_title)
+            content = self.__patch_frontmatter(content, "name", new_title)
 
         self._vault.write(path, content)
 
-        # Move file if title or project changed
-        new_path = self._relocated_path(path, new_title or title, project)
+        new_path = self.__relocated_path(path, new_title or title, project)
         if new_path != path:
             self._vault.move(path, new_path)
 
@@ -107,17 +103,17 @@ class TaskService:
 
     def delete_task(self, title: str) -> str:
         """Delete a task file (active or done). Rebuilds index."""
-        path = self._resolve_path(title, anywhere=True)
+        path = self.__resolve_path(title, anywhere=True)
         self._vault.delete(path)
         self.rebuild_index()
         return str(path)
 
     def list_tasks(self, project: str | None = None) -> list[TaskNote]:
-        """List open tasks sorted by priority. Rebuilds index first."""
+        """List open tasks sorted by priority."""
         self.rebuild_index()
         tasks: list[TaskNote] = []
-        for f in self._open_task_files():
-            task = self._parse_task(self._vault.read(f), source_path=f)
+        for f in self.__open_task_files():
+            task = TaskNote.from_content(self._vault.read(f), source_path=f)
             if task and not task.done:
                 if project is None or task.project == project:
                     tasks.append(task)
@@ -133,7 +129,7 @@ class TaskService:
             if f.name == "TASKS.md":
                 continue
             try:
-                task = self._parse_task(self._vault.read(f), source_path=f)
+                task = TaskNote.from_content(self._vault.read(f), source_path=f)
                 if not task:
                     continue
                 key = task.project or "inbox"
@@ -148,15 +144,15 @@ class TaskService:
             tasks.sort(key=lambda t: _PRIORITY_ORDER[t.priority])
 
         lines = ["# Tasks\n"]
-        lines += self._render_active_section(by_project)
-        lines += self._render_done_section(done_by_project)
+        lines += self.__render_active_section(by_project)
+        lines += self.__render_done_section(done_by_project)
 
         content = "\n".join(lines)
         self._vault.write(self._vault.tasks_path / "TASKS.md", content)
         return content
 
-    def _index_links(self) -> dict[str, Path]:
-        """Parse TASKS.md and return {title_slug: absolute_path} for all tasks."""
+    def __index_links(self) -> dict[str, Path]:
+        """Return {title_slug: absolute_path} parsed from TASKS.md."""
         index_path = self._vault.tasks_path / "TASKS.md"
         if not self._vault.exists(index_path):
             return {}
@@ -168,23 +164,16 @@ class TaskService:
                 links[slug] = self._vault.tasks_path / m.group(2)
         return links
 
-    def _resolve_path(self, title: str, anywhere: bool = False) -> Path:
-        """Resolve a task file path from title via TASKS.md index.
-
-        anywhere=True also searches Done section (archive/).
-        Raises VaultReadError if not found.
-        """
+    def __resolve_path(self, title: str, anywhere: bool = False) -> Path:
+        """Resolve task file path from TASKS.md index. Raises VaultReadError if not found."""
         slug = _slugify(title)
-        links = self._index_links()
-
-        path = links.get(slug)
+        path = self.__index_links().get(slug)
         if path and self._vault.exists(path):
             if anywhere or "archive" not in path.parts:
                 return path
-
         raise VaultReadError(f"Task not found: {title!r}")
 
-    def _open_task_files(self) -> list[Path]:
+    def __open_task_files(self) -> list[Path]:
         """Task files excluding TASKS.md and archive/ subfolders."""
         return [
             f
@@ -192,13 +181,13 @@ class TaskService:
             if f.name != "TASKS.md" and "archive" not in f.parts
         ]
 
-    def _relocated_path(self, current: Path, title: str, project: str | None) -> Path:
+    def __relocated_path(self, current: Path, title: str, project: str | None) -> Path:
         """Return the expected path for a task after title/project change."""
         slug = _slugify(title)
         subfolder = project if project is not None else current.parent.name
         return self._vault.tasks_path / subfolder / f"{slug}.md"
 
-    def _render_active_section(self, by_project: dict[str, list[TaskNote]]) -> list[str]:
+    def __render_active_section(self, by_project: dict[str, list[TaskNote]]) -> list[str]:
         lines: list[str] = []
         for project in sorted(by_project):
             lines.append(f"## Project: {project}\n")
@@ -207,22 +196,22 @@ class TaskService:
                 if t.priority != current_priority:
                     current_priority = t.priority
                     lines.append(f"### Priority: {t.priority}\n")
-                lines.append(self._render_link(t))
+                lines.append(self.__render_link(t))
             lines.append("")
         return lines
 
-    def _render_done_section(self, done_by_project: dict[str, list[TaskNote]]) -> list[str]:
+    def __render_done_section(self, done_by_project: dict[str, list[TaskNote]]) -> list[str]:
         if not done_by_project:
             return []
         lines: list[str] = ["## Done\n"]
         for project in sorted(done_by_project):
             lines.append(f"### Project: {project}\n")
             for t in done_by_project[project]:
-                lines.append(self._render_link(t))
+                lines.append(self.__render_link(t))
             lines.append("")
         return lines
 
-    def _render_link(self, task: TaskNote) -> str:
+    def __render_link(self, task: TaskNote) -> str:
         rel = (
             task.source_path.relative_to(self._vault.tasks_path)
             if task.source_path
@@ -232,54 +221,13 @@ class TaskService:
         due_str = f" (due:{task.due.isoformat()})" if task.due else ""
         return f"- [{task.title}]({rel}) — {desc}{due_str}"
 
-    def _parse_task(self, content: str, source_path: Path | None = None) -> TaskNote | None:
-        """Parse a task note from markdown content."""
-        fields = _extract_frontmatter(content)
-        title = fields.get("name", "")
-        if not title:
-            return None
-        priority_val = fields.get("priority", "medium")
-        status_val = fields.get("status", "active")
-        due_val = fields.get("due")
-        return TaskNote(
-            title=title,
-            description=fields.get("description", ""),
-            priority=Priority(priority_val)
-            if priority_val in _VALID_PRIORITY_VALUES
-            else Priority.MEDIUM,
-            status=TaskStatus(status_val)
-            if status_val in _VALID_STATUS_VALUES
-            else TaskStatus.ACTIVE,
-            due=date.fromisoformat(due_val) if due_val else None,
-            project=fields.get("project") or None,
-            created=date.fromisoformat(c) if (c := fields.get("created")) else date.today(),
-            source_path=source_path,
+    @staticmethod
+    def __patch_frontmatter(content: str, field: str, value: object) -> str:
+        """Replace a single frontmatter field value, preserving everything else."""
+        return re.sub(
+            rf"^({re.escape(field)}:\s*).*$",
+            rf"\g<1>{value}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
         )
-
-
-def _extract_frontmatter(content: str) -> dict[str, str]:
-    """Extract key: value pairs from the YAML frontmatter block."""
-    fields: dict[str, str] = {}
-    in_fm = False
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped == "---":
-            if not in_fm:
-                in_fm = True
-                continue
-            break
-        if in_fm and ":" in stripped:
-            key, _, val = stripped.partition(":")
-            fields[key.strip()] = val.strip()
-    return fields
-
-
-def _patch_frontmatter(content: str, field: str, value: object) -> str:
-    """Replace a single frontmatter field value, preserving everything else."""
-    return re.sub(
-        rf"^({re.escape(field)}:\s*).*$",
-        rf"\g<1>{value}",
-        content,
-        count=1,
-        flags=re.MULTILINE,
-    )

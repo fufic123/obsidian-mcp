@@ -13,6 +13,23 @@ def slugify(text: str) -> str:
     return sub(r"[-\s]+", "-", text).strip("-")
 
 
+def extract_frontmatter(content: str) -> dict[str, str]:
+    """Extract key: value pairs from a YAML frontmatter block."""
+    fields: dict[str, str] = {}
+    in_fm = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped == "---":
+            if not in_fm:
+                in_fm = True
+                continue
+            break
+        if in_fm and ":" in stripped:
+            key, _, val = stripped.partition(":")
+            fields[key.strip()] = val.strip()
+    return fields
+
+
 def render_frontmatter(fields: dict[str, Any]) -> str:
     """Render a dict as YAML frontmatter block."""
     lines = ["---"]
