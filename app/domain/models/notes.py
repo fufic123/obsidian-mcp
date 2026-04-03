@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import date
 from enum import Enum, StrEnum
+from pathlib import Path
 from re import sub
 from typing import Any
 
@@ -200,17 +201,19 @@ class TaskNote(BaseModel, INote):
     """Obsidian Tasks compatible task."""
 
     title: str
+    description: str = ""  # short AI-facing summary
     priority: Priority
     due: date | None = None
     project: str | None = None
     done: bool = False
     created: date = Field(default_factory=date.today)
+    source_path: Path | None = Field(default=None, exclude=True)  # runtime only, not serialized
 
     def frontmatter(self) -> dict[str, object]:
         """Return frontmatter fields."""
         return {
             "name": self.title,
-            "description": self.title,
+            "description": self.description or self.title,
             "type": "task",
             "priority": self.priority,
             "project": self.project,

@@ -20,12 +20,13 @@ class TaskService:
     def create_task(
         self,
         title: str,
+        description: str,
         priority: Priority,
         due: date | None = None,
         project: str | None = None,
     ) -> str:
         """Create a task note at tasks/{project}/slug.md. Returns the file path."""
-        note = TaskNote(title=title, priority=priority, due=due, project=project)
+        note = TaskNote(title=title, description=description, priority=priority, due=due, project=project)
         subfolder = project if project else "inbox"
         path = self._vault.tasks_path / subfolder / f"{note.slug}.md"
         self._vault.write(path, note.to_markdown())
@@ -41,8 +42,6 @@ class TaskService:
 
         content = self._vault.read(path)
         updated = content.replace("- [ ]", "- [x]", 1)
-
-        # Write updated content then move to archive subfolder
         self._vault.write(path, updated)
         archive_path = path.parent / "archive" / path.name
         self._vault.move(path, archive_path)
@@ -52,31 +51,22 @@ class TaskService:
     def list_tasks(self, project: str | None = None) -> list[TaskNote]:
         """List open tasks. Always rebuilds index from source files first."""
         self.rebuild_index()
-        files = self._open_task_files()
         tasks: list[TaskNote] = []
-        for f in files:
-            content = self._vault.read(f)
-            task = self._parse_task(content)
+        for f in self._open_task_files():
+            task = self._parse_task(self._vault.read(f), source_path=f)
             if task and not task.done:
                 if project is None or task.project == project:
                     tasks.append(task)
         tasks.sort(key=lambda t: _PRIORITY_ORDER[t.priority])
         return tasks
 
-    def _open_task_files(self) -> list[Path]:
-        """All task files excluding TASKS.md index and archive subfolders."""
-        return [
-            f for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
-            if f.name != "TASKS.md" and "archive" not in f.parts
-        ]
-
     def rebuild_index(self) -> str:
-        """Regenerate tasks/TASKS.md from source files. Source of truth = individual .md files."""
+        """Regenerate tasks/TASKS.md. Source of truth = individual .md files."""
+        # Collect open tasks with their file paths
         by_project: dict[str, list[TaskNote]] = {}
         for f in self._open_task_files():
             try:
-                content = self._vault.read(f)
-                task = self._parse_task(content)
+                task = self._parse_task(self._vault.read(f), source_path=f)
                 if task and not task.done:
                     key = task.project or "inbox"
                     by_project.setdefault(key, []).append(task)
@@ -88,37 +78,43 @@ class TaskService:
 
         lines = ["# Tasks\n"]
         for project in sorted(by_project):
-            lines.append(project)
-            by_priority: dict[Priority, list[str]] = {}
+            lines.append(f"## {project}\n")
+            current_priority: Priority | None = None
             for t in by_project[project]:
-                entry = t.title
-                if t.due:
-                    entry += f" (due:{t.due.isoformat()})"
-                by_priority.setdefault(t.priority, []).append(entry)
-            for priority in (Priority.HIGH, Priority.MEDIUM, Priority.LOW):
-                if priority in by_priority:
-                    titles = ", ".join(by_priority[priority])
-                    lines.append(f"  {priority}: {titles}")
+                if t.priority != current_priority:
+                    current_priority = t.priority
+                    lines.append(f"### {t.priority}\n")
+                # Build relative link from tasks/ root
+                rel = t.source_path.relative_to(self._vault.tasks_path) if t.source_path else Path(t.slug + ".md")
+                desc = t.description or t.title
+                due_str = f" (due:{t.due.isoformat()})" if t.due else ""
+                lines.append(f"- [{t.title}]({rel}) — {desc}{due_str}")
             lines.append("")
 
         content = "\n".join(lines)
-        index_path = self._vault.tasks_path / "TASKS.md"
-        self._vault.write(index_path, content)
+        self._vault.write(self._vault.tasks_path / "TASKS.md", content)
         return content
+
+    def _open_task_files(self) -> list[Path]:
+        """All task files excluding TASKS.md index and archive subfolders."""
+        return [
+            f for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
+            if f.name != "TASKS.md" and "archive" not in f.parts
+        ]
 
     def _find_task_file(self, slug: str) -> Path | None:
         """Find task file by slug across all project subfolders."""
-        files = self._vault.list_files(self._vault.tasks_path, recursive=True)
-        for f in files:
+        for f in self._vault.list_files(self._vault.tasks_path, recursive=True):
             if f.stem == slug:
                 return f
         return None
 
-    def _parse_task(self, content: str) -> TaskNote | None:
+    def _parse_task(self, content: str, source_path: Path | None = None) -> TaskNote | None:
         """Parse a task note from markdown content."""
         lines = content.splitlines()
 
         title = ""
+        description = ""
         project: str | None = None
         priority: Priority = Priority.MEDIUM
         created = date.today()
@@ -134,6 +130,8 @@ class TaskService:
             if in_frontmatter:
                 if stripped.startswith("name:"):
                     title = stripped[5:].strip()
+                elif stripped.startswith("description:"):
+                    description = stripped[12:].strip()
                 elif stripped.startswith("priority:"):
                     val = stripped[9:].strip()
                     if val in _VALID_PRIORITY_VALUES:
@@ -167,11 +165,11 @@ class TaskService:
 
         return TaskNote(
             title=title,
+            description=description,
             priority=priority,
             due=due,
             project=project,
             done=done,
             created=created,
+            source_path=source_path,
         )
-
-

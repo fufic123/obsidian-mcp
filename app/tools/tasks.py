@@ -14,17 +14,20 @@ def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
     @mcp.tool()
     def create_task(
         title: str,
+        description: str,
         priority: Priority,
         due: str | None = None,
         project: str | None = None,
     ) -> str:
         """Create a task in Obsidian Tasks format.
 
-        Saved to tasks/{project}/slug.md. Rebuilds TASKS.md index automatically.
+        title: short name (3-6 words), shown in TASKS.md index.
+        description: one sentence for AI — what needs to be done and why.
+        Saved to tasks/{project}/slug.md. Rebuilds TASKS.md automatically.
         priority: 'high' (⏫), 'medium' (🔼), or 'low' (🔽).
         """
         due_date = date.fromisoformat(due) if due else None
-        path = tasks.create_task(title=title, priority=priority, due=due_date, project=project)
+        path = tasks.create_task(title=title, description=description, priority=priority, due=due_date, project=project)
         return f"Created task: {path}"
 
     @mcp.tool()
