@@ -2,14 +2,14 @@
 
 from abc import ABC, abstractmethod
 from datetime import date
-from enum import Enum
+from enum import Enum, StrEnum
 from re import sub
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class Priority(str, Enum):
+class Priority(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
