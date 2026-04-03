@@ -62,6 +62,16 @@ class FileVaultService(IVaultService):
         glob_fn = validated.rglob if recursive else validated.glob
         return sorted(glob_fn(pattern))
 
+    def move(self, src: Path, dst: Path) -> None:
+        """Move a file within the vault, creating destination directories as needed."""
+        validated_src = self._validate_path(src)
+        validated_dst = self._validate_path(dst)
+        try:
+            validated_dst.parent.mkdir(parents=True, exist_ok=True)
+            validated_src.rename(validated_dst)
+        except OSError as e:
+            raise VaultWriteError(f"Cannot move {src} → {dst}") from e
+
     def exists(self, path: Path) -> bool:
         """Check if a path exists in the vault."""
         try:

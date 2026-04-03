@@ -33,7 +33,7 @@ class TaskService:
         return str(path)
 
     def complete_task(self, title: str) -> str:
-        """Mark a task as done by title. Rebuilds index. Returns the file path."""
+        """Mark a task done and move to tasks/{project}/archive/. Rebuilds index."""
         slug = _slugify(title)
         path = self._find_task_file(slug)
         if path is None:
@@ -41,18 +41,20 @@ class TaskService:
 
         content = self._vault.read(path)
         updated = content.replace("- [ ]", "- [x]", 1)
+
+        # Write updated content then move to archive subfolder
         self._vault.write(path, updated)
+        archive_path = path.parent / "archive" / path.name
+        self._vault.move(path, archive_path)
         self.rebuild_index()
-        return str(path)
+        return str(archive_path)
 
     def list_tasks(self, project: str | None = None) -> list[TaskNote]:
         """List open tasks. Always rebuilds index from source files first."""
         self.rebuild_index()
-        files = self._vault.list_files(self._vault.tasks_path, recursive=True)
+        files = self._open_task_files()
         tasks: list[TaskNote] = []
         for f in files:
-            if f.name.startswith("TASKS"):
-                continue
             content = self._vault.read(f)
             task = self._parse_task(content)
             if task and not task.done:
@@ -61,14 +63,17 @@ class TaskService:
         tasks.sort(key=lambda t: _PRIORITY_ORDER[t.priority])
         return tasks
 
+    def _open_task_files(self) -> list[Path]:
+        """All task files excluding TASKS.md index and archive subfolders."""
+        return [
+            f for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
+            if f.name != "TASKS.md" and "archive" not in f.parts
+        ]
+
     def rebuild_index(self) -> str:
         """Regenerate tasks/TASKS.md from source files. Source of truth = individual .md files."""
-        files = self._vault.list_files(self._vault.tasks_path, recursive=True)
-
         by_project: dict[str, list[TaskNote]] = {}
-        for f in files:
-            if f.name.startswith("TASKS"):
-                continue
+        for f in self._open_task_files():
             try:
                 content = self._vault.read(f)
                 task = self._parse_task(content)

@@ -70,6 +70,11 @@ class IVaultService(ABC):
         ...
 
     @abstractmethod
+    def move(self, src: Path, dst: Path) -> None:
+        """Move a file within the vault, creating destination directories as needed."""
+        ...
+
+    @abstractmethod
     def search_content(self, query: str) -> list[tuple[Path, str]]:
         """Full-text search across all vault markdown files."""
         ...
