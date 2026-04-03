@@ -1,9 +1,11 @@
 """Task service — manages Obsidian Tasks format tasks."""
 
 from datetime import date
+from pathlib import Path
 
+from app.domain.exceptions.vault import VaultReadError
 from app.domain.interfaces.vault import IVaultService
-from app.domain.models.notes import Priority, TaskNote
+from app.domain.models.notes import Priority, TaskNote, _slugify
 
 _VALID_PRIORITY_VALUES = {p.value for p in Priority}
 _PRIORITY_ORDER = {Priority.HIGH: 0, Priority.MEDIUM: 1, Priority.LOW: 2}
@@ -30,8 +32,22 @@ class TaskService:
         self.rebuild_index()
         return str(path)
 
+    def complete_task(self, title: str) -> str:
+        """Mark a task as done by title. Rebuilds index. Returns the file path."""
+        slug = _slugify(title)
+        path = self._find_task_file(slug)
+        if path is None:
+            raise VaultReadError(f"Task not found: {title!r}")
+
+        content = self._vault.read(path)
+        updated = content.replace("- [ ]", "- [x]", 1)
+        self._vault.write(path, updated)
+        self.rebuild_index()
+        return str(path)
+
     def list_tasks(self, project: str | None = None) -> list[TaskNote]:
-        """List uncompleted tasks, optionally filtered by project."""
+        """List open tasks. Always rebuilds index from source files first."""
+        self.rebuild_index()
         files = self._vault.list_files(self._vault.tasks_path, recursive=True)
         tasks: list[TaskNote] = []
         for f in files:
@@ -46,10 +62,9 @@ class TaskService:
         return tasks
 
     def rebuild_index(self) -> str:
-        """Regenerate tasks/TASKS.md index grouped by project and priority."""
+        """Regenerate tasks/TASKS.md from source files. Source of truth = individual .md files."""
         files = self._vault.list_files(self._vault.tasks_path, recursive=True)
 
-        # Collect open tasks grouped by project
         by_project: dict[str, list[TaskNote]] = {}
         for f in files:
             if f.name.startswith("TASKS"):
@@ -63,7 +78,6 @@ class TaskService:
             except Exception:
                 continue
 
-        # Sort tasks within each project by priority
         for tasks in by_project.values():
             tasks.sort(key=lambda t: _PRIORITY_ORDER[t.priority])
 
@@ -86,6 +100,14 @@ class TaskService:
         index_path = self._vault.tasks_path / "TASKS.md"
         self._vault.write(index_path, content)
         return content
+
+    def _find_task_file(self, slug: str) -> Path | None:
+        """Find task file by slug across all project subfolders."""
+        files = self._vault.list_files(self._vault.tasks_path, recursive=True)
+        for f in files:
+            if f.stem == slug:
+                return f
+        return None
 
     def _parse_task(self, content: str) -> TaskNote | None:
         """Parse a task note from markdown content."""
@@ -146,3 +168,5 @@ class TaskService:
             done=done,
             created=created,
         )
+
+

@@ -41,6 +41,15 @@ def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
         return "\n".join(lines)
 
     @mcp.tool()
+    def complete_task(title: str) -> str:
+        """Mark a task as done by its title. Works regardless of who created it.
+
+        Finds the task file by title slug, sets - [x], rebuilds TASKS.md index.
+        """
+        path = tasks.complete_task(title)
+        return f"Completed: {path}"
+
+    @mcp.tool()
     def rebuild_tasks_index() -> str:
-        """Regenerate tasks/TASKS.md index grouped by project and sorted by priority."""
+        """Regenerate tasks/TASKS.md from source files. Call after manual edits in Obsidian."""
         return tasks.rebuild_index()
