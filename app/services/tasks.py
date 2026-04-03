@@ -26,7 +26,9 @@ class TaskService:
         project: str | None = None,
     ) -> str:
         """Create a task note at tasks/{project}/slug.md. Returns the file path."""
-        note = TaskNote(title=title, description=description, priority=priority, due=due, project=project)
+        note = TaskNote(
+            title=title, description=description, priority=priority, due=due, project=project
+        )
         subfolder = project if project else "inbox"
         path = self._vault.tasks_path / subfolder / f"{note.slug}.md"
         self._vault.write(path, note.to_markdown())
@@ -85,7 +87,11 @@ class TaskService:
                     current_priority = t.priority
                     lines.append(f"### {t.priority}\n")
                 # Build relative link from tasks/ root
-                rel = t.source_path.relative_to(self._vault.tasks_path) if t.source_path else Path(t.slug + ".md")
+                rel = (
+                    t.source_path.relative_to(self._vault.tasks_path)
+                    if t.source_path
+                    else Path(t.slug + ".md")
+                )
                 desc = t.description or t.title
                 due_str = f" (due:{t.due.isoformat()})" if t.due else ""
                 lines.append(f"- [{t.title}]({rel}) — {desc}{due_str}")
@@ -98,7 +104,8 @@ class TaskService:
     def _open_task_files(self) -> list[Path]:
         """All task files excluding TASKS.md index and archive subfolders."""
         return [
-            f for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
+            f
+            for f in self._vault.list_files(self._vault.tasks_path, recursive=True)
             if f.name != "TASKS.md" and "archive" not in f.parts
         ]
 

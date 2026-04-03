@@ -32,9 +32,7 @@ class MemoryService(IMemoryService):
             results.append(content)
         return results
 
-    def get_relevant_context(
-        self, query: str, project: str | None = None
-    ) -> list[SearchResult]:
+    def get_relevant_context(self, query: str, project: str | None = None) -> list[SearchResult]:
         """Return scored results matching query, sorted by relevance."""
         return self._search.search(SearchQuery(query=query, project=project))
 

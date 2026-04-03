@@ -39,9 +39,7 @@ def test_score_match() -> None:
     assert score == 4.5
 
 
-def test_search_finds_highlights(
-    search: FrontmatterSearchService, vault: FileVaultService
-) -> None:
+def test_search_finds_highlights(search: FrontmatterSearchService, vault: FileVaultService) -> None:
     """Search returns matching highlights."""
     content = (
         "---\n"

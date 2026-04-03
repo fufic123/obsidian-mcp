@@ -61,9 +61,7 @@ def test_get_relevant_context(memory: MemoryService, vault: FileVaultService) ->
 def test_rebuild_index(memory: MemoryService, vault: FileVaultService) -> None:
     """Rebuild MEMORY.md from saved notes."""
     memory.save_core(CoreNote(name="Role", description="Engineer", content="..."))
-    memory.save_highlight(
-        HighlightNote(name="Tip", description="A tip", content="...", tags=[])
-    )
+    memory.save_highlight(HighlightNote(name="Tip", description="A tip", content="...", tags=[]))
 
     content = memory.rebuild_index()
     assert "# Memory Index" in content

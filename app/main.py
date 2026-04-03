@@ -1,9 +1,9 @@
 """Entry point — DI wiring and FastMCP initialization."""
 
 import os
+import tomllib
 from pathlib import Path
 
-import tomli
 from fastmcp import FastMCP
 
 from app.adapters.index import IndexService
@@ -31,11 +31,9 @@ def _load_config() -> AppConfig:
     for config_path in config_paths:
         if config_path is not None and config_path.exists():
             with open(config_path, "rb") as f:
-                data = tomli.load(f)
+                data = tomllib.load(f)
             raw_ns = data.get("namespaces", {})
-            namespaces = {
-                name: NamespaceConfig(**ns) for name, ns in raw_ns.items()
-            }
+            namespaces = {name: NamespaceConfig(**ns) for name, ns in raw_ns.items()}
             return AppConfig(
                 namespaces=namespaces,
                 memory=MemoryConfig(**data.get("memory", {})),

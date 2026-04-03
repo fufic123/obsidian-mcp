@@ -18,7 +18,9 @@ class IVaultService(ABC):
         ...
 
     @abstractmethod
-    def list_files(self, directory: Path, pattern: str = "*.md", recursive: bool = False) -> list[Path]:
+    def list_files(
+        self, directory: Path, pattern: str = "*.md", recursive: bool = False
+    ) -> list[Path]:
         """List files matching pattern in a vault directory."""
         ...
 

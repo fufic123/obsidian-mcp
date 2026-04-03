@@ -35,9 +35,7 @@ class AppConfig(BaseModel):
     """Top-level application configuration."""
 
     namespaces: dict[str, NamespaceConfig] = Field(
-        default_factory=lambda: {
-            "default": NamespaceConfig(vault="~/vaults/personal")
-        }
+        default_factory=lambda: {"default": NamespaceConfig(vault="~/vaults/personal")}
     )
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
 

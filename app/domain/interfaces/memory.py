@@ -19,9 +19,7 @@ class IMemoryService(ABC):
         ...
 
     @abstractmethod
-    def get_relevant_context(
-        self, query: str, project: str | None = None
-    ) -> list[SearchResult]:
+    def get_relevant_context(self, query: str, project: str | None = None) -> list[SearchResult]:
         """Return scored results matching query, sorted by relevance."""
         ...
 

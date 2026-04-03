@@ -27,7 +27,9 @@ def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
         priority: 'high' (⏫), 'medium' (🔼), or 'low' (🔽).
         """
         due_date = date.fromisoformat(due) if due else None
-        path = tasks.create_task(title=title, description=description, priority=priority, due=due_date, project=project)
+        path = tasks.create_task(
+            title=title, description=description, priority=priority, due=due_date, project=project
+        )
         return f"Created task: {path}"
 
     @mcp.tool()
