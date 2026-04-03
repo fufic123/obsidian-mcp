@@ -3,8 +3,18 @@
 from abc import ABC, abstractmethod
 from datetime import date
 from re import sub
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+Priority = Literal["high", "medium", "low"]
+
+_PRIORITY_EMOJI: dict[Priority, str] = {
+    "high": "⏫",
+    "medium": "🔼",
+    "low": "🔽",
+}
 
 
 class INote(ABC):
@@ -183,6 +193,7 @@ class TaskNote(BaseModel, INote):
     """Obsidian Tasks compatible task."""
 
     title: str
+    priority: Priority
     due: date | None = None
     project: str | None = None
     done: bool = False
@@ -194,6 +205,7 @@ class TaskNote(BaseModel, INote):
             "name": self.title,
             "description": self.title,
             "type": "task",
+            "priority": self.priority,
             "project": self.project,
             "tags": [],
             "created": self.created,
@@ -203,7 +215,8 @@ class TaskNote(BaseModel, INote):
         """Render as Obsidian Tasks format."""
         fm = _render_frontmatter(self.frontmatter())
         checkbox = "x" if self.done else " "
-        line = f"- [{checkbox}] {self.title}"
+        emoji = _PRIORITY_EMOJI[self.priority]
+        line = f"- [{checkbox}] {self.title} {emoji}"
         if self.due:
             line += f" 📅 {self.due.isoformat()}"
         if self.project:

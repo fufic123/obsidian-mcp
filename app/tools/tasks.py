@@ -1,10 +1,14 @@
 """MCP tool wrappers for task operations."""
 
 from datetime import date
+from typing import Literal
 
 from fastmcp import FastMCP
 
+from app.domain.models.notes import Priority
 from app.services.tasks import TaskService
+
+_PRIORITY_ORDER: dict[Priority, int] = {"high": 0, "medium": 1, "low": 2}
 
 
 def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
@@ -13,23 +17,28 @@ def register_task_tools(mcp: FastMCP, tasks: TaskService) -> None:
     @mcp.tool()
     def create_task(
         title: str,
+        priority: Literal["high", "medium", "low"],
         due: str | None = None,
         project: str | None = None,
     ) -> str:
-        """Create a task in Obsidian Tasks format."""
+        """Create a task in Obsidian Tasks format.
+
+        priority: task urgency — 'high' (⏫), 'medium' (🔼), or 'low' (🔽).
+        """
         due_date = date.fromisoformat(due) if due else None
-        path = tasks.create_task(title=title, due=due_date, project=project)
+        path = tasks.create_task(title=title, priority=priority, due=due_date, project=project)
         return f"Created task: {path}"
 
     @mcp.tool()
     def list_tasks(project: str | None = None) -> str:
-        """List uncompleted tasks, optionally filtered by project."""
+        """List uncompleted tasks sorted by priority, optionally filtered by project."""
         task_list = tasks.list_tasks(project=project)
         if not task_list:
             return "No open tasks found."
+        task_list.sort(key=lambda t: _PRIORITY_ORDER[t.priority])
         lines: list[str] = []
         for t in task_list:
             due_str = f" (due: {t.due.isoformat()})" if t.due else ""
             proj_str = f" [{t.project}]" if t.project else ""
-            lines.append(f"- [ ] {t.title}{due_str}{proj_str}")
+            lines.append(f"- [ ] [{t.priority}] {t.title}{due_str}{proj_str}")
         return "\n".join(lines)

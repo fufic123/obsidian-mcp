@@ -1,9 +1,12 @@
 """Task service — manages Obsidian Tasks format tasks."""
 
 from datetime import date
+from typing import get_args
 
 from app.domain.interfaces.vault import IVaultService
-from app.domain.models.notes import TaskNote
+from app.domain.models.notes import Priority, TaskNote
+
+_VALID_PRIORITIES = set(get_args(Priority))
 
 
 class TaskService:
@@ -15,11 +18,12 @@ class TaskService:
     def create_task(
         self,
         title: str,
+        priority: Priority,
         due: date | None = None,
         project: str | None = None,
     ) -> str:
         """Create a task note. Returns the file path."""
-        note = TaskNote(title=title, due=due, project=project)
+        note = TaskNote(title=title, priority=priority, due=due, project=project)
         path = self._vault.tasks_path / f"{note.slug}.md"
         self._vault.write(path, note.to_markdown())
         return str(path)
@@ -45,6 +49,7 @@ class TaskService:
         # Extract frontmatter
         title = ""
         project: str | None = None
+        priority: Priority = "medium"
         created = date.today()
         in_frontmatter = False
         for line in lines:
@@ -58,6 +63,10 @@ class TaskService:
             if in_frontmatter:
                 if stripped.startswith("name:"):
                     title = stripped[5:].strip()
+                elif stripped.startswith("priority:"):
+                    val = stripped[9:].strip()
+                    if val in _VALID_PRIORITIES:
+                        priority = val  # type: ignore[assignment]
                 elif stripped.startswith("project:"):
                     val = stripped[8:].strip()
                     project = val if val else None
@@ -92,6 +101,7 @@ class TaskService:
 
         return TaskNote(
             title=title,
+            priority=priority,
             due=due,
             project=project,
             done=done,
