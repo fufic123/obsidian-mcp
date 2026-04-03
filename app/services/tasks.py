@@ -80,12 +80,12 @@ class TaskService:
 
         lines = ["# Tasks\n"]
         for project in sorted(by_project):
-            lines.append(f"## {project}\n")
+            lines.append(f"## Project: {project}\n")
             current_priority: Priority | None = None
             for t in by_project[project]:
                 if t.priority != current_priority:
                     current_priority = t.priority
-                    lines.append(f"### {t.priority}\n")
+                    lines.append(f"### Priority: {t.priority}\n")
                 # Build relative link from tasks/ root
                 rel = (
                     t.source_path.relative_to(self._vault.tasks_path)
