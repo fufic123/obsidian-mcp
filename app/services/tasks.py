@@ -110,10 +110,19 @@ class TaskService:
         ]
 
     def _find_task_file(self, slug: str) -> Path | None:
-        """Find task file by slug across all project subfolders."""
+        """Find task file by slug — matches filename stem or frontmatter name slug."""
         for f in self._vault.list_files(self._vault.tasks_path, recursive=True):
+            if f.name == "TASKS.md" or "archive" in f.parts:
+                continue
             if f.stem == slug:
                 return f
+            # Fallback: match by frontmatter name slug (filename may be stale)
+            try:
+                task = self._parse_task(self._vault.read(f))
+                if task and _slugify(task.title) == slug:
+                    return f
+            except Exception:
+                continue
         return None
 
     def _parse_task(self, content: str, source_path: Path | None = None) -> TaskNote | None:
