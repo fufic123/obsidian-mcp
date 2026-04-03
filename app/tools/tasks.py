@@ -4,21 +4,31 @@ from datetime import date
 
 from fastmcp import FastMCP
 
+from app.domain.interfaces.performance import IPerformanceService
 from app.domain.models.priority import Priority
 from app.services.tasks import TaskService
+from app.tools.base import BaseTools
 
 
-class TaskTools:
-    def __init__(self, tasks: TaskService, mcp: FastMCP) -> None:
+class TaskTools(BaseTools):
+    def __init__(
+        self,
+        tasks: TaskService,
+        mcp: FastMCP,
+        performance_service: IPerformanceService | None = None,
+        agent_name: str = "obsidian-mcp",
+        model: str = "unknown",
+    ) -> None:
+        super().__init__(performance_service, agent_name, model)
         self._tasks = tasks
-        mcp.tool()(self.get_task)
-        mcp.tool()(self.create_task)
-        mcp.tool()(self.list_tasks)
-        mcp.tool()(self.complete_task)
-        mcp.tool()(self.reopen_task)
-        mcp.tool()(self.update_task)
-        mcp.tool()(self.delete_task)
-        mcp.tool()(self.rebuild_tasks_index)
+        mcp.tool()(self._wrap(self.get_task))
+        mcp.tool()(self._wrap(self.create_task))
+        mcp.tool()(self._wrap(self.list_tasks))
+        mcp.tool()(self._wrap(self.complete_task))
+        mcp.tool()(self._wrap(self.reopen_task))
+        mcp.tool()(self._wrap(self.update_task))
+        mcp.tool()(self._wrap(self.delete_task))
+        mcp.tool()(self._wrap(self.rebuild_tasks_index))
 
     def get_task(self, title: str) -> str:
         """Read a task by title — returns full details including description and status.

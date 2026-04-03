@@ -3,20 +3,30 @@
 from fastmcp import FastMCP
 
 from app.domain.interfaces.memory import IMemoryService
+from app.domain.interfaces.performance import IPerformanceService
 from app.domain.models.conversation_note import ConversationSummary
 from app.domain.models.core_note import CoreNote
 from app.domain.models.highlight_note import HighlightNote
+from app.tools.base import BaseTools
 
 
-class MemoryTools:
-    def __init__(self, memory: IMemoryService, mcp: FastMCP) -> None:
+class MemoryTools(BaseTools):
+    def __init__(
+        self,
+        memory: IMemoryService,
+        mcp: FastMCP,
+        performance_service: IPerformanceService | None = None,
+        agent_name: str = "obsidian-mcp",
+        model: str = "unknown",
+    ) -> None:
+        super().__init__(performance_service, agent_name, model)
         self._memory = memory
-        mcp.tool()(self.get_core_context)
-        mcp.tool()(self.get_relevant_context)
-        mcp.tool()(self.save_highlight)
-        mcp.tool()(self.save_core)
-        mcp.tool()(self.save_conversation)
-        mcp.tool()(self.rebuild_index)
+        mcp.tool()(self._wrap(self.get_core_context))
+        mcp.tool()(self._wrap(self.get_relevant_context))
+        mcp.tool()(self._wrap(self.save_highlight))
+        mcp.tool()(self._wrap(self.save_core))
+        mcp.tool()(self._wrap(self.save_conversation))
+        mcp.tool()(self._wrap(self.rebuild_index))
 
     def get_core_context(self) -> str:
         """Load core context — always call at conversation start."""

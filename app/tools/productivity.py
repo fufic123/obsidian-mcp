@@ -4,20 +4,29 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
+from app.domain.interfaces.performance import IPerformanceService
 from app.domain.interfaces.vault import IVaultService
 from app.services.productivity import ProductivityService
+from app.tools.base import BaseTools
 
 
-class ProductivityTools:
+class ProductivityTools(BaseTools):
     def __init__(
-        self, productivity: ProductivityService, vault: IVaultService, mcp: FastMCP
+        self,
+        productivity: ProductivityService,
+        vault: IVaultService,
+        mcp: FastMCP,
+        performance_service: IPerformanceService | None = None,
+        agent_name: str = "obsidian-mcp",
+        model: str = "unknown",
     ) -> None:
+        super().__init__(performance_service, agent_name, model)
         self._productivity = productivity
         self._vault = vault
-        mcp.tool()(self.create_daily_note)
-        mcp.tool()(self.generate_moc)
-        mcp.tool()(self.search_vault)
-        mcp.tool()(self.get_note)
+        mcp.tool()(self._wrap(self.create_daily_note))
+        mcp.tool()(self._wrap(self.generate_moc))
+        mcp.tool()(self._wrap(self.search_vault))
+        mcp.tool()(self._wrap(self.get_note))
 
     def create_daily_note(self, content: str | None = None) -> str:
         """Create or append to today's daily note."""

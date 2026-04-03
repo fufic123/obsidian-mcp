@@ -10,10 +10,13 @@ from app.adapters.index import IndexService
 from app.adapters.search import FrontmatterSearchService
 from app.adapters.vault import FileVaultService
 from app.domain.models.config import AppConfig, MemoryConfig, NamespaceConfig
+from app.services.cost_estimator import CostEstimator
 from app.services.memory import MemoryService
+from app.services.performance import PerformanceService
 from app.services.productivity import ProductivityService
 from app.services.tasks import TaskService
 from app.tools.memory import MemoryTools
+from app.tools.performance import PerformanceTools
 from app.tools.productivity import ProductivityTools
 from app.tools.tasks import TaskTools
 
@@ -21,11 +24,8 @@ from app.tools.tasks import TaskTools
 def _load_config() -> AppConfig:
     """Load configuration from config.toml."""
     config_paths = [
-        # 1. Explicit env var
         Path(p) if (p := os.environ.get("OBSIDIAN_MCP_CONFIG")) else None,
-        # 2. XDG-style user config
         Path.home() / ".config" / "obsidian-mcp" / "config.toml",
-        # 3. Local (for development)
         Path("config.toml"),
     ]
     for config_path in config_paths:
@@ -46,24 +46,22 @@ def create_app() -> FastMCP:
     config = _load_config()
     cwd = os.environ.get("PWD", os.getcwd())
     vault_path = config.resolve_vault(cwd)
-
-    # Ensure vault directory exists
     vault_path.mkdir(parents=True, exist_ok=True)
 
-    # Wire up dependencies
     vault = FileVaultService(vault_path)
     search = FrontmatterSearchService(vault, config.memory)
     index = IndexService(vault, config.memory)
     memory = MemoryService(vault, search, index)
     tasks = TaskService(vault)
     productivity = ProductivityService(vault)
+    performance = PerformanceService(vault, CostEstimator())
 
-    # Create MCP server
     mcp = FastMCP("obsidian-mcp", instructions="Obsidian vault memory server")
 
-    MemoryTools(memory, mcp)
-    TaskTools(tasks, mcp)
-    ProductivityTools(productivity, vault, mcp)
+    MemoryTools(memory, mcp, performance_service=performance)
+    TaskTools(tasks, mcp, performance_service=performance)
+    ProductivityTools(productivity, vault, mcp, performance_service=performance)
+    PerformanceTools(performance, mcp)
 
     return mcp
 

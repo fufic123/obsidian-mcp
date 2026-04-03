@@ -71,6 +71,12 @@ class IVaultService(ABC):
         """Path to daily/ directory."""
         ...
 
+    @property
+    @abstractmethod
+    def performance_path(self) -> Path:
+        """Path to performance/ directory."""
+        ...
+
     @abstractmethod
     def move(self, src: Path, dst: Path) -> None:
         """Move a file within the vault, creating destination directories as needed."""
