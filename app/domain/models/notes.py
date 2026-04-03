@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import date
 from enum import Enum
 from re import sub
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -48,16 +49,18 @@ def _slugify(text: str) -> str:
     return sub(r"[-\s]+", "-", text).strip("-")
 
 
-def _render_frontmatter(fields: dict[str, object]) -> str:
+def _render_frontmatter(fields: dict[str, Any]) -> str:
     """Render a dict as YAML frontmatter block."""
     lines = ["---"]
     for key, value in fields.items():
-        if isinstance(value, list):
+        if value is None:
+            continue
+        elif isinstance(value, list):
             lines.append(f"{key}: [{', '.join(str(v) for v in value)}]")
         elif isinstance(value, date):
             lines.append(f"{key}: {value.isoformat()}")
-        elif value is None:
-            continue
+        elif isinstance(value, Enum):
+            lines.append(f"{key}: {value.value}")
         else:
             lines.append(f"{key}: {value}")
     lines.append("---")
