@@ -69,12 +69,17 @@ class TaskService:
 
         lines = ["# Tasks\n"]
         for project in sorted(by_project):
-            lines.append(f"## {project}\n")
+            lines.append(project)
+            by_priority: dict[Priority, list[str]] = {}
             for t in by_project[project]:
-                from app.domain.models.notes import _PRIORITY_EMOJI
-                emoji = _PRIORITY_EMOJI[t.priority]
-                due_str = f" 📅 {t.due.isoformat()}" if t.due else ""
-                lines.append(f"- [ ] {t.title} {emoji}{due_str} #project/{project}")
+                entry = t.title
+                if t.due:
+                    entry += f" (due:{t.due.isoformat()})"
+                by_priority.setdefault(t.priority, []).append(entry)
+            for priority in (Priority.HIGH, Priority.MEDIUM, Priority.LOW):
+                if priority in by_priority:
+                    titles = ", ".join(by_priority[priority])
+                    lines.append(f"  {priority}: {titles}")
             lines.append("")
 
         content = "\n".join(lines)
