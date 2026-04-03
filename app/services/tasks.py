@@ -5,9 +5,10 @@ from pathlib import Path
 
 from app.domain.exceptions.vault import VaultReadError
 from app.domain.interfaces.vault import IVaultService
-from app.domain.models.notes import Priority, TaskNote, _slugify
+from app.domain.models.notes import Priority, TaskNote, TaskStatus, _slugify
 
 _VALID_PRIORITY_VALUES = {p.value for p in Priority}
+_VALID_STATUS_VALUES = {s.value for s in TaskStatus}
 _PRIORITY_ORDER = {Priority.HIGH: 0, Priority.MEDIUM: 1, Priority.LOW: 2}
 
 
@@ -43,7 +44,7 @@ class TaskService:
             raise VaultReadError(f"Task not found: {title!r}")
 
         content = self._vault.read(path)
-        updated = content.replace("- [ ]", "- [x]", 1)
+        updated = content.replace("status: active", "status: done", 1)
         self._vault.write(path, updated)
         archive_path = path.parent / "archive" / path.name
         self._vault.move(path, archive_path)
@@ -64,7 +65,6 @@ class TaskService:
 
     def rebuild_index(self) -> str:
         """Regenerate tasks/TASKS.md. Source of truth = individual .md files."""
-        # Collect open tasks with their file paths
         by_project: dict[str, list[TaskNote]] = {}
         for f in self._open_task_files():
             try:
@@ -86,7 +86,6 @@ class TaskService:
                 if t.priority != current_priority:
                     current_priority = t.priority
                     lines.append(f"### Priority: {t.priority}\n")
-                # Build relative link from tasks/ root
                 rel = (
                     t.source_path.relative_to(self._vault.tasks_path)
                     if t.source_path
@@ -116,7 +115,6 @@ class TaskService:
                 continue
             if f.stem == slug:
                 return f
-            # Fallback: match by frontmatter name slug (filename may be stale)
             try:
                 task = self._parse_task(self._vault.read(f))
                 if task and _slugify(task.title) == slug:
@@ -133,6 +131,8 @@ class TaskService:
         description = ""
         project: str | None = None
         priority: Priority = Priority.MEDIUM
+        status: TaskStatus = TaskStatus.ACTIVE
+        due: date | None = None
         created = date.today()
         in_frontmatter = False
         for line in lines:
@@ -148,6 +148,10 @@ class TaskService:
                     title = stripped[5:].strip()
                 elif stripped.startswith("description:"):
                     description = stripped[12:].strip()
+                elif stripped.startswith("status:"):
+                    val = stripped[7:].strip()
+                    if val in _VALID_STATUS_VALUES:
+                        status = TaskStatus(val)
                 elif stripped.startswith("priority:"):
                     val = stripped[9:].strip()
                     if val in _VALID_PRIORITY_VALUES:
@@ -160,19 +164,9 @@ class TaskService:
                         created = date.fromisoformat(stripped[8:].strip())
                     except ValueError:
                         pass
-
-        done = False
-        due: date | None = None
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("- [x]"):
-                done = True
-            if "\U0001f4c5" in stripped:
-                parts = stripped.split("\U0001f4c5")
-                if len(parts) > 1:
-                    date_str = parts[1].strip().split()[0]
+                elif stripped.startswith("due:"):
                     try:
-                        due = date.fromisoformat(date_str)
+                        due = date.fromisoformat(stripped[4:].strip())
                     except ValueError:
                         pass
 
@@ -183,9 +177,9 @@ class TaskService:
             title=title,
             description=description,
             priority=priority,
+            status=status,
             due=due,
             project=project,
-            done=done,
             created=created,
             source_path=source_path,
         )

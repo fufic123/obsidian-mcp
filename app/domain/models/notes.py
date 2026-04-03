@@ -16,6 +16,11 @@ class Priority(StrEnum):
     LOW = "low"
 
 
+class TaskStatus(StrEnum):
+    ACTIVE = "active"
+    DONE = "done"
+
+
 _PRIORITY_EMOJI: dict[Priority, str] = {
     Priority.HIGH: "⏫",
     Priority.MEDIUM: "🔼",
@@ -198,16 +203,20 @@ class DailyNote(BaseModel, INote):
 
 
 class TaskNote(BaseModel, INote):
-    """Obsidian Tasks compatible task."""
+    """Task note with frontmatter-based status."""
 
     title: str
     description: str = ""  # short AI-facing summary
     priority: Priority
+    status: TaskStatus = TaskStatus.ACTIVE
     due: date | None = None
     project: str | None = None
-    done: bool = False
     created: date = Field(default_factory=date.today)
     source_path: Path | None = Field(default=None, exclude=True)  # runtime only, not serialized
+
+    @property
+    def done(self) -> bool:
+        return self.status == TaskStatus.DONE
 
     def frontmatter(self) -> dict[str, object]:
         """Return frontmatter fields."""
@@ -215,6 +224,7 @@ class TaskNote(BaseModel, INote):
             "name": self.title,
             "description": self.description or self.title,
             "type": "task",
+            "status": self.status,
             "priority": self.priority,
             "project": self.project,
             "tags": [],
@@ -222,16 +232,9 @@ class TaskNote(BaseModel, INote):
         }
 
     def to_markdown(self) -> str:
-        """Render as Obsidian Tasks format."""
+        """Render task note — status in frontmatter, no checkbox line."""
         fm = _render_frontmatter(self.frontmatter())
-        checkbox = "x" if self.done else " "
-        emoji = _PRIORITY_EMOJI[self.priority]
-        line = f"- [{checkbox}] {self.title} {emoji}"
-        if self.due:
-            line += f" 📅 {self.due.isoformat()}"
-        if self.project:
-            line += f" #project/{self.project}"
-        return f"{fm}\n\n{line}\n"
+        return f"{fm}\n"
 
     @property
     def slug(self) -> str:
