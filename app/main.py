@@ -1,6 +1,5 @@
 """Entry point — DI wiring and FastMCP initialization."""
 
-import atexit
 import os
 import tomllib
 from pathlib import Path
@@ -11,13 +10,10 @@ from app.adapters.index import IndexService
 from app.adapters.search import FrontmatterSearchService
 from app.adapters.vault import FileVaultService
 from app.domain.models.config import AppConfig, MemoryConfig, NamespaceConfig
-from app.services.cost_estimator import CostEstimator
 from app.services.memory import MemoryService
-from app.services.performance import PerformanceService
 from app.services.productivity import ProductivityService
 from app.services.tasks import TaskService
 from app.tools.memory import MemoryTools
-from app.tools.performance import PerformanceTools
 from app.tools.productivity import ProductivityTools
 from app.tools.tasks import TaskTools
 
@@ -55,19 +51,12 @@ def create_app() -> FastMCP:
     memory = MemoryService(vault, search, index)
     tasks = TaskService(vault)
     productivity = ProductivityService(vault)
-    performance = PerformanceService(vault, CostEstimator())
 
     mcp = FastMCP("obsidian-mcp", instructions="Obsidian vault memory server")
 
-    server_session_id = performance.start_session("obsidian-mcp", "unknown")
-    atexit.register(performance.end_all_active_sessions)
-
-    MemoryTools(memory, mcp, performance_service=performance, session_id=server_session_id)
-    TaskTools(tasks, mcp, performance_service=performance, session_id=server_session_id)
-    ProductivityTools(
-        productivity, vault, mcp, performance_service=performance, session_id=server_session_id
-    )
-    PerformanceTools(performance, mcp)
+    MemoryTools(memory, mcp)
+    TaskTools(tasks, mcp)
+    ProductivityTools(productivity, vault, mcp)
 
     return mcp
 

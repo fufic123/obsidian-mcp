@@ -40,8 +40,11 @@ class MemoryService(IMemoryService):
 
     def save_highlight(self, note: HighlightNote) -> str:
         """Persist a highlight note. Returns the file path."""
-        path = self._vault.highlights_path / f"{note.slug}.md"
+        subfolder = note.project or "general"
+        path = self._vault.highlights_path / subfolder / f"{note.slug}.md"
         self._vault.write(path, note.to_markdown())
+        self._index.rebuild_highlights()
+        self._index.rebuild()
         return str(path)
 
     def save_core(self, note: CoreNote) -> str:

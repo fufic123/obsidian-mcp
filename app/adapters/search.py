@@ -61,12 +61,14 @@ class FrontmatterSearchService(ISearchService):
         self._vault = vault
         self._config = config
 
-    def _scan_directory(self, directory: Path) -> list[tuple[Path, dict[str, str | list[str]]]]:
+    def _scan_directory(
+        self, directory: Path, recursive: bool = False
+    ) -> list[tuple[Path, dict[str, str | list[str]]]]:
         """Scan frontmatter of all markdown files in a directory."""
         results: list[tuple[Path, dict[str, str | list[str]]]] = []
-        files = self._vault.list_files(directory)
+        files = self._vault.list_files(directory, recursive=recursive)
         for file_path in files:
-            if file_path.name.startswith("INDEX") or file_path.name == "MEMORY.md":
+            if file_path.stem.isupper():
                 continue
             try:
                 content = self._vault.read(file_path)
@@ -82,8 +84,8 @@ class FrontmatterSearchService(ISearchService):
         """Search vault files by frontmatter fields."""
         all_entries: list[tuple[Path, dict[str, str | list[str]]]] = []
 
-        # Scan highlights and conversation summaries
-        all_entries.extend(self._scan_directory(self._vault.highlights_path))
+        # Scan highlights (recursive — files live in project subfolders) and conversation summaries
+        all_entries.extend(self._scan_directory(self._vault.highlights_path, recursive=True))
         summaries_path = self._vault.conversations_path / "summaries"
         all_entries.extend(self._scan_directory(summaries_path))
 

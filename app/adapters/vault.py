@@ -127,11 +127,6 @@ class FileVaultService(IVaultService):
         """Path to daily/ directory."""
         return self._root / "daily"
 
-    @property
-    def performance_path(self) -> Path:
-        """Path to performance/ directory."""
-        return self._root / "performance"
-
     def search_content(self, query: str) -> list[tuple[Path, str]]:
         """Full-text search across all vault markdown files."""
         results: list[tuple[Path, str]] = []

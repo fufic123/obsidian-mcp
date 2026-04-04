@@ -4,35 +4,28 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
-from app.domain.interfaces.performance import IPerformanceService
 from app.domain.interfaces.vault import IVaultService
 from app.services.productivity import ProductivityService
-from app.tools.base import BaseTools
 
 
-class ProductivityTools(BaseTools):
+class ProductivityTools:
     def __init__(
-        self,
-        productivity: ProductivityService,
-        vault: IVaultService,
-        mcp: FastMCP,
-        performance_service: IPerformanceService | None = None,
-        session_id: str | None = None,
+        self, productivity: ProductivityService, vault: IVaultService, mcp: FastMCP
     ) -> None:
-        super().__init__(performance_service, session_id)
         self._productivity = productivity
         self._vault = vault
-        mcp.tool()(self._wrap(self.get_status))
-        mcp.tool()(self._wrap(self.create_daily_note))
-        mcp.tool()(self._wrap(self.generate_moc))
-        mcp.tool()(self._wrap(self.search_vault))
-        mcp.tool()(self._wrap(self.get_note))
+        mcp.tool()(self.get_status)
+        mcp.tool()(self.create_daily_note)
+        mcp.tool()(self.generate_moc)
+        mcp.tool()(self.search_vault)
+        mcp.tool()(self.get_note)
 
     def get_status(self) -> str:
-        """Return active vault paths and basic health info.
+        """Return vault root, memory dir, and tasks dir with index health.
 
-        Call this at session start to confirm which vault is active
-        and that memory/tasks directories are reachable.
+        Call at conversation start before using any other tools — confirms which vault
+        is active and that MEMORY.md and TASKS.md indexes exist. If an index is missing,
+        call rebuild_index or rebuild_tasks_index before proceeding.
         """
         vault = self._vault
         tasks_index = vault.tasks_path / "TASKS.md"
@@ -45,7 +38,7 @@ class ProductivityTools(BaseTools):
         return "\n".join(lines)
 
     def create_daily_note(self, content: str | None = None) -> str:
-        """Create or append to today's daily note."""
+        """Append content to today's daily note, creating it if it doesn't exist."""
         path = self._productivity.create_daily_note(content)
         return f"Daily note: {path}"
 
@@ -55,7 +48,12 @@ class ProductivityTools(BaseTools):
         return f"MOC generated:\n{content}"
 
     def search_vault(self, query: str) -> str:
-        """Full-text search across all vault markdown files."""
+        """Full-text search across all vault markdown files. Returns up to 20 matches.
+
+        Use for exploratory search when you don't know where information is stored.
+        For memory retrieval by topic, prefer get_relevant_context — it's scored by relevance.
+        For reading a specific known file, use get_note instead.
+        """
         results = self._vault.search_content(query)
         if not results:
             return "No results found."
@@ -65,5 +63,9 @@ class ProductivityTools(BaseTools):
         return "\n".join(lines)
 
     def get_note(self, path: str) -> str:
-        """Read a note by its path (relative to vault root)."""
+        """Read a vault file by path relative to the vault root.
+
+        Use when you have an exact path (e.g. from search_vault results).
+        path example: "tasks/obsidian-mcp/improve-mcp-tool-descriptions.md"
+        """
         return self._vault.read(self._vault.root / Path(path))

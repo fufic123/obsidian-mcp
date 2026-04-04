@@ -228,7 +228,7 @@ class TaskService:
     def __patch_frontmatter(content: str, field: str, value: object) -> str:
         """Replace a single frontmatter field value, preserving everything else."""
         return re.sub(
-            rf"^({re.escape(field)}:\s*).*$",
+            rf"^({re.escape(field)}:[^\S\n]*).*$",
             rf"\g<1>{value}",
             content,
             count=1,

@@ -7,40 +7,46 @@ The vault is persistent memory — everything saved here survives across convers
 
 Call these in order, every time:
 
-1. `get_status()` — confirm which vault is active and that indexes exist.
+1. `get_status()` — confirm vault is healthy. If an index is missing, call `rebuild_index` or `rebuild_tasks_index` before proceeding.
 2. `get_core_context()` — load who the user is and how to work with them.
-3. `get_relevant_context(query)` — load context relevant to the current topic.
+3. `get_relevant_context(query)` — use 1–3 keywords from the user's first message. Skip if the first message gives no clear topic.
 
 ## Saving memory
 
-**User tells you something about themselves, their preferences, or constraints** → `save_core(name, description, content)`
+**User states a preference, constraint, or fact about themselves** → `save_core`
+- Use a stable `name` so updates overwrite the same note, not create duplicates.
+  Good names: `"tech-stack"`, `"communication-style"`, `"timezone"`.
+- Only save explicit, non-trivial preferences — skip throwaway remarks.
 
-**An insight, decision, or piece of knowledge is worth remembering** → `save_highlight(name, description, content, tags?, project?)`
-- `description`: one sentence — what this note is about.
-- `content`: the full insight with enough context to be useful in a future conversation.
+**An insight, decision, or domain knowledge emerged** → `save_highlight`
+- Not for user preferences → `save_core`.
+- Not for conversation summaries → `save_conversation`.
 
-**The conversation was meaningful** → `save_conversation(title, key_points, full_content, project?)` at the end of the session.
-- `key_points`: 3–5 strings, each a standalone fact.
-- `full_content`: prose summary of what happened.
-- Do not call after small talk or one-off questions.
+**The conversation was meaningful** → `save_conversation` at the end only.
+- Skip after small talk or one-off questions.
+- `key_points`: 3–5 standalone facts, each readable without the full summary.
 
 ## Tasks
 
-Before creating a task, call `list_tasks()` — never create duplicates.
+**Before starting work on a task:** `get_task(title)` — read implementation notes and prior decisions.
 
-**`create_task(title, description, priority, due?, project?)`**
-- `title`: 3–6 words, noun phrase, no verbs. Example: "MCP namespace diagnostics".
-- `description`: one sentence, AI-facing — what needs to be done and why.
-- `priority`: `high` | `medium` | `low`
+**Before creating a task:** `list_tasks()` — never create duplicates.
 
-**When you finish work on a task:**
-1. `update_task(title, implementation=...)` — write what was built, what decisions were made, what changed. One paragraph. Never leave it as "done" or empty.
-2. `complete_task(title)` — moves to archive.
+**When you finish work:**
+1. `update_task(title, implementation="...")` — one paragraph: what was built, what decisions were made, what changed. Never leave it empty.
+2. `complete_task(title)` — archives the task.
 
-Use `get_task(title)` to read full task details including previous implementation notes before starting work on it.
+**To undo a completion:** `reopen_task(title)`.
+
+**To discard a task entirely:** `delete_task(title)` — use only for irrelevant tasks. For finished work use `complete_task` so the history is preserved.
+
+## Searching the vault
+
+- **By topic, scored by relevance** → `get_relevant_context(query)`
+- **Full-text across all files** → `search_vault(query)`
+- **Read a specific file by path** → `get_note(path)`
 
 ## Rules
 
-- Never call `rebuild_index` or `rebuild_tasks_index` unless explicitly asked — saves trigger rebuilds automatically.
-- Never call `save_conversation` mid-conversation — only at the end.
-- `get_relevant_context` works best with short keyword queries, not full sentences.
+- Never call `rebuild_index` or `rebuild_tasks_index` proactively — saves and task operations rebuild automatically.
+- Never call `save_conversation` mid-conversation.

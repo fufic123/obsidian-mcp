@@ -63,10 +63,11 @@ class TaskNote(BaseModel, INote):
         return {
             "name": self.title,
             "description": self.description or self.title,
-            "implementation": self.implementation or None,
+            "implementation": self.implementation,
             "type": "task",
             "status": self.status,
             "priority": self.priority,
+            "due": self.due,
             "project": self.project,
             "tags": [],
             "created": self.created,

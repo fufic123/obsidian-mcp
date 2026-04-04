@@ -4,35 +4,27 @@ from datetime import date
 
 from fastmcp import FastMCP
 
-from app.domain.interfaces.performance import IPerformanceService
 from app.domain.models.priority import Priority
 from app.services.tasks import TaskService
-from app.tools.base import BaseTools
 
 
-class TaskTools(BaseTools):
-    def __init__(
-        self,
-        tasks: TaskService,
-        mcp: FastMCP,
-        performance_service: IPerformanceService | None = None,
-        session_id: str | None = None,
-    ) -> None:
-        super().__init__(performance_service, session_id)
+class TaskTools:
+    def __init__(self, tasks: TaskService, mcp: FastMCP) -> None:
         self._tasks = tasks
-        mcp.tool()(self._wrap(self.get_task))
-        mcp.tool()(self._wrap(self.create_task))
-        mcp.tool()(self._wrap(self.list_tasks))
-        mcp.tool()(self._wrap(self.complete_task))
-        mcp.tool()(self._wrap(self.reopen_task))
-        mcp.tool()(self._wrap(self.update_task))
-        mcp.tool()(self._wrap(self.delete_task))
-        mcp.tool()(self._wrap(self.rebuild_tasks_index))
+        mcp.tool()(self.get_task)
+        mcp.tool()(self.create_task)
+        mcp.tool()(self.list_tasks)
+        mcp.tool()(self.complete_task)
+        mcp.tool()(self.reopen_task)
+        mcp.tool()(self.update_task)
+        mcp.tool()(self.delete_task)
+        mcp.tool()(self.rebuild_tasks_index)
 
     def get_task(self, title: str) -> str:
-        """Read a task by title — returns full details including description and status.
+        """Read full task details by title, including description, status, and implementation notes.
 
-        Searches both active and done (archive) tasks via TASKS.md index.
+        Searches both active and archived (done) tasks.
+        Call before starting work on a task to check what was previously decided or built.
         """
         task = self._tasks.get_task(title)
         lines = [
@@ -59,11 +51,13 @@ class TaskTools(BaseTools):
         due: str | None = None,
         project: str | None = None,
     ) -> str:
-        """Create a task in tasks/{project}/slug.md. Rebuilds TASKS.md automatically.
+        """Create a new task file and rebuild TASKS.md.
 
-        title: short noun phrase (3-6 words).
-        description: one sentence for AI — what needs to be done and why.
-        priority: 'high', 'medium', or 'low'.
+        Call list_tasks first — never create a task that already exists.
+        title: 3-6 word noun phrase, no verbs. Example: "MCP auth refactor".
+        description: one AI-facing sentence — what needs doing and why.
+        priority: 'high' | 'medium' | 'low'.
+        due: ISO date string, e.g. "2026-05-01".
         """
         due_date = date.fromisoformat(due) if due else None
         path = self._tasks.create_task(
@@ -76,7 +70,12 @@ class TaskTools(BaseTools):
         return f"Created: {path}"
 
     def list_tasks(self, project: str | None = None) -> str:
-        """List open tasks sorted by priority, optionally filtered by project."""
+        """List all open tasks sorted high → medium → low, optionally filtered by project.
+
+        Rebuilds TASKS.md before returning — do NOT call rebuild_tasks_index separately.
+        Call before create_task to check for duplicates.
+        Does NOT return done/archived tasks — use get_task(title) to read a specific done task.
+        """
         task_list = self._tasks.list_tasks(project=project)
         if not task_list:
             return "No open tasks found."
@@ -88,12 +87,16 @@ class TaskTools(BaseTools):
         return "\n".join(lines)
 
     def complete_task(self, title: str) -> str:
-        """Mark a task done: sets status=done, moves to archive/. Rebuilds index."""
+        """Mark a task done: sets status=done, moves to archive/, rebuilds index.
+
+        Call update_task(title, implementation=...) BEFORE this to record what was built.
+        A completed task without an implementation note is considered incomplete.
+        """
         path = self._tasks.complete_task(title)
         return f"Completed: {path}"
 
     def reopen_task(self, title: str) -> str:
-        """Reopen a done task: sets status=active, moves back from archive/."""
+        """Reopen a done task: sets status=active, moves it back out of archive/."""
         path = self._tasks.reopen_task(title)
         return f"Reopened: {path}"
 
@@ -107,9 +110,12 @@ class TaskTools(BaseTools):
         due: str | None = None,
         project: str | None = None,
     ) -> str:
-        """Update any fields of an active or done task. Only pass fields you want to change.
+        """Update any fields on an active or done task. Only pass fields you want to change.
 
-        implementation: AI-written summary of what was done — use this when completing work.
+        implementation: write here before calling complete_task — describe what was built,
+          what decisions were made, and what changed. One paragraph. Never leave it empty.
+        new_title: renames the task and moves the file to the new slug path.
+        project: moves the file to the new project subfolder.
         """
         due_date = date.fromisoformat(due) if due else None
         path = self._tasks.update_task(
@@ -124,10 +130,18 @@ class TaskTools(BaseTools):
         return f"Updated: {path}"
 
     def delete_task(self, title: str) -> str:
-        """Permanently delete a task file (active or done)."""
+        """Permanently delete a task file (active or done). Cannot be undone.
+
+        Use only when a task is truly irrelevant — not when it's finished.
+        For finished work use complete_task so the history is preserved in archive/.
+        """
         path = self._tasks.delete_task(title)
         return f"Deleted: {path}"
 
     def rebuild_tasks_index(self) -> str:
-        """Regenerate TASKS.md from source files. Call after manual edits in Obsidian."""
+        """Regenerate TASKS.md from source files — call only when explicitly asked.
+
+        create_task, complete_task, update_task, and list_tasks all rebuild automatically.
+        Only call this after manually editing task files in Obsidian outside the MCP.
+        """
         return self._tasks.rebuild_index()
