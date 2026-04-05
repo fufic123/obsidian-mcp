@@ -71,6 +71,37 @@ class IndexService:
         self._vault.write(self._vault.highlights_path / "HIGHLIGHTS.md", index_content)
         return index_content
 
+    def rebuild_conversations(self) -> str:
+        """Rebuild conversations/CONVERSATIONS.md index grouped by project."""
+        by_project: dict[str, list[str]] = {}
+
+        for file_path in self._vault.list_files(self._vault.conversations_path, recursive=True):
+            if file_path.stem.isupper():
+                continue
+            try:
+                content = self._vault.read(file_path)
+                lines_fm = content.splitlines()[: self._config.frontmatter_scan_lines]
+                fm = _parse_frontmatter(lines_fm)
+                name = str(fm.get("name", file_path.stem))
+                description = str(fm.get("description", ""))
+                project = str(fm.get("project", "") or file_path.parent.name)
+                rel_path = file_path.relative_to(self._vault.conversations_path)
+                by_project.setdefault(project, []).append(
+                    f"- [{name}]({rel_path}) \u2014 {description}"
+                )
+            except Exception:
+                continue
+
+        sections: list[str] = ["# Conversations\n"]
+        for project in sorted(by_project):
+            sections.append(f"## Project: {project}\n")
+            sections.extend(by_project[project])
+            sections.append("")
+
+        index_content = "\n".join(sections)
+        self._vault.write(self._vault.conversations_path / "CONVERSATIONS.md", index_content)
+        return index_content
+
     def rebuild(self) -> str:
         """Rebuild MEMORY.md from all memory files."""
         sections: list[str] = [
@@ -82,6 +113,10 @@ class IndexService:
             "- [HIGHLIGHTS.md](highlights/HIGHLIGHTS.md)"
             " \u2014 insights and decisions grouped by project",
             "",
+            "## Conversations",
+            "- [CONVERSATIONS.md](conversations/CONVERSATIONS.md)"
+            " \u2014 conversation summaries grouped by project",
+            "",
         ]
 
         # Core section
@@ -89,14 +124,6 @@ class IndexService:
         if core_entries:
             sections.append("## Core")
             sections.extend(core_entries)
-            sections.append("")
-
-        # Conversations section
-        summaries_path = self._vault.conversations_path / "summaries"
-        conv_entries = self._collect_entries(summaries_path)
-        if conv_entries:
-            sections.append("## Conversations")
-            sections.extend(conv_entries)
             sections.append("")
 
         content = "\n".join(sections)

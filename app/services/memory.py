@@ -55,12 +55,12 @@ class MemoryService(IMemoryService):
 
     def save_conversation(self, note: ConversationSummary) -> str:
         """Persist a conversation summary. Returns the file path."""
-        summary_path = self._vault.conversations_path / "summaries" / f"{note.slug}.md"
-        self._vault.write(summary_path, note.to_markdown())
-        # Also save full content to archive
-        archive_path = self._vault.conversations_path / "archive" / f"{note.slug}.md"
-        self._vault.write(archive_path, note.full_content)
-        return str(summary_path)
+        subfolder = note.project or "general"
+        path = self._vault.conversations_path / subfolder / f"{note.slug}.md"
+        self._vault.write(path, note.to_markdown())
+        self._index.rebuild_conversations()
+        self._index.rebuild()
+        return str(path)
 
     def rebuild_index(self) -> str:
         """Rebuild MEMORY.md from all files."""

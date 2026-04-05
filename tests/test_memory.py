@@ -75,19 +75,49 @@ def test_highlights_index_groups_by_project(memory: MemoryService, vault: FileVa
     assert "Beta" in content
 
 
-def test_save_conversation(memory: MemoryService, vault: FileVaultService) -> None:
-    """Save a conversation with summary and archive."""
+def test_save_conversation_without_project_goes_to_general(
+    memory: MemoryService, vault: FileVaultService
+) -> None:
+    """A conversation without a project is saved under conversations/general/."""
     note = ConversationSummary(
         title="How to setup MCP",
         key_points=["Use FastMCP", "Stdio transport"],
         full_content="Full conversation text here...",
     )
     path = memory.save_conversation(note)
-    assert "summaries" in path
+    assert "how-to-setup-mcp.md" in path
+    assert vault.exists(vault.conversations_path / "general" / "how-to-setup-mcp.md")
 
-    # Archive should also exist
-    archive = vault.conversations_path / "archive" / "how-to-setup-mcp.md"
-    assert vault.exists(archive)
+
+def test_save_conversation_with_project_goes_to_project_subfolder(
+    memory: MemoryService, vault: FileVaultService
+) -> None:
+    """A conversation with a project is saved under conversations/{project}/."""
+    note = ConversationSummary(
+        title="MCP Refactor Session",
+        key_points=["Removed performance tracking", "Added highlights by project"],
+        full_content="...",
+        project="obsidian-mcp",
+    )
+    memory.save_conversation(note)
+    assert vault.exists(vault.conversations_path / "obsidian-mcp" / "mcp-refactor-session.md")
+
+
+def test_save_conversation_rebuilds_conversations_index(
+    memory: MemoryService, vault: FileVaultService
+) -> None:
+    """Saving a conversation creates/updates CONVERSATIONS.md."""
+    note = ConversationSummary(
+        title="Test Session",
+        key_points=["point one"],
+        full_content="...",
+        project="work",
+    )
+    memory.save_conversation(note)
+    assert vault.exists(vault.conversations_path / "CONVERSATIONS.md")
+    content = vault.read(vault.conversations_path / "CONVERSATIONS.md")
+    assert "Test Session" in content
+    assert "work" in content
 
 
 def test_get_relevant_context(memory: MemoryService, vault: FileVaultService) -> None:
@@ -106,13 +136,13 @@ def test_get_relevant_context(memory: MemoryService, vault: FileVaultService) ->
 
 
 def test_rebuild_index(memory: MemoryService, vault: FileVaultService) -> None:
-    """MEMORY.md links to HIGHLIGHTS.md rather than listing individual highlights."""
+    """MEMORY.md links to HIGHLIGHTS.md and CONVERSATIONS.md, lists core notes inline."""
     memory.save_core(CoreNote(name="Role", description="Engineer", content="..."))
     memory.save_highlight(HighlightNote(name="Tip", description="A tip", content="...", tags=[]))
 
     content = memory.rebuild_index()
     assert "# Memory Index" in content
     assert "Role" in content
-    # Highlights appear as a link to HIGHLIGHTS.md, not as individual entries
     assert "HIGHLIGHTS.md" in content
+    assert "CONVERSATIONS.md" in content
     assert vault.exists(vault.memory_path / "MEMORY.md")

@@ -84,10 +84,9 @@ class FrontmatterSearchService(ISearchService):
         """Search vault files by frontmatter fields."""
         all_entries: list[tuple[Path, dict[str, str | list[str]]]] = []
 
-        # Scan highlights (recursive — files live in project subfolders) and conversation summaries
+        # Both highlights and conversations live in project subfolders — scan recursively
         all_entries.extend(self._scan_directory(self._vault.highlights_path, recursive=True))
-        summaries_path = self._vault.conversations_path / "summaries"
-        all_entries.extend(self._scan_directory(summaries_path))
+        all_entries.extend(self._scan_directory(self._vault.conversations_path, recursive=True))
 
         results: list[SearchResult] = []
         for path, fm in all_entries:
